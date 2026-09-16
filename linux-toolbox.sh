@@ -45,26 +45,26 @@ if [ ! -t 1 ]; then
     C_RESET='' C_CYAN='' C_DARKCYAN='' C_GREEN='' C_YELLOW='' C_RED=''
     C_GRAY='' C_WHITE='' C_DARKGRAY='' C_BOLD='' C_BLOCK='' C_TAB=''
 else
-    C_RESET='\033[0m'
-    C_CYAN='\033[96m'          # Cyan (equivalente ao Cyan do PowerShell)
-    C_DARKCYAN='\033[36m'      # DarkCyan (divisores do Item Help)
-    C_GREEN='\033[32m'
-    C_YELLOW='\033[33m'
-    C_RED='\033[31m'
-    C_GRAY='\033[37m'
-    C_WHITE='\033[1;37m'
-    C_DARKGRAY='\033[90m'
-    C_BOLD='\033[1m'
-    C_BLOCK='\033[30;42m'      # texto preto sobre bloco verde (cursor BIOS)
-    C_TAB='\033[30;43m'        # texto preto sobre bloco amarelo (aba ativa)
+    C_RESET=$'\e[0m'
+    C_CYAN=$'\e[96m'          # Cyan brilhante (bordas BIOS)
+    C_DARKCYAN=$'\e[36m'      # DarkCyan (divisores do Item Help)
+    C_GREEN=$'\e[32m'
+    C_YELLOW=$'\e[33m'
+    C_RED=$'\e[31m'
+    C_GRAY=$'\e[37m'
+    C_WHITE=$'\e[1;37m'
+    C_DARKGRAY=$'\e[90m'
+    C_BOLD=$'\e[1m'
+    C_BLOCK=$'\e[30;42m'      # texto preto sobre bloco verde (cursor BIOS)
+    C_TAB=$'\e[30;43m'        # texto preto sobre bloco amarelo (aba ativa)
 fi
 export C_RESET C_CYAN C_DARKCYAN C_GREEN C_YELLOW C_RED C_GRAY C_WHITE C_DARKGRAY C_BOLD C_BLOCK C_TAB
 
-# Dimensões da "tela" estilo Setup Utility (100 x 30 — bordas incluídas)
-LARGURA=100
+# Dimensões da tela estilo Setup Utility (120 x 30 — padronizada igual win-toolbox.ps1)
+LARGURA=120
 ALTURA=30
-W_LISTA=55                    # colunas da lista de itens (esquerda)
-W_HELP=38                     # colunas do painel Item Help (direita)
+W_LISTA=68                    # colunas da lista de itens (esquerda)
+W_HELP=45                     # colunas do painel Item Help (direita)
 PAGE_SIZE=21                  # itens visíveis por página (21 linhas de conteúdo)
 
 declare -g -A INSTALLED_CACHE=()
@@ -208,18 +208,19 @@ linha_borda() {
     if [ "$top" = "1" ]; then
         printf '%s\n' "${C_CYAN}╔$(rep_char '═' $((LARGURA - 2)))╗${C_RESET}"
     else
-        printf '%s\n' "${C_CYAN}╚$(rep_char '═' $((LARGURA - 2)))╝${C_RESET}"
+        printf '%s' "${C_CYAN}╚$(rep_char '═' $((LARGURA - 2)))╝${C_RESET}"
     fi
 }
 
 # Divisor horizontal que separa lista (esquerda) do painel Item Help (direita)
+# Split: 70 chars esquerda + 47 chars direita (1 + 70 + 1 + 47 + 1 = 120 colunas)
 linha_split() {
-    printf '%s\n' "${C_CYAN}╠$(rep_char '═' $((W_LISTA + 2)))╦$(rep_char '═' $((W_HELP + 2)))╣${C_RESET}"
+    printf '%s\n' "${C_CYAN}╠$(rep_char '═' 70)╦$(rep_char '═' 47)╣${C_RESET}"
 }
 
 # Divisor horizontal inferior (╠═╩═╣) antes do rodapé de dicas
 linha_split_footer() {
-    printf '%s\n' "${C_CYAN}╠$(rep_char '═' $((W_LISTA + 2)))╩$(rep_char '═' $((W_HELP + 2)))╣${C_RESET}"
+    printf '%s\n' "${C_CYAN}╠$(rep_char '═' 70)╩$(rep_char '═' 47)╣${C_RESET}"
 }
 
 # ==============================================================================
@@ -805,48 +806,83 @@ help_add() {
 # (idx < 0 = nenhum item → painel vazio)
 montar_help_lines() {
     local idx="$1"
-    HELP_TEXTS=(); HELP_COLORS=()
+    HELP_TEXTS=()
+    HELP_COLORS=()
 
+    # 0: Cabeçalho do Painel
     help_add " Informações do Item" "$C_YELLOW"
-    help_add "$(rep_char '─' 38)" "$C_DARKCYAN"
+    
+    # 1: Linha divisória horizontal
+    help_add "$(rep_char '─' 45)" "$C_DARKCYAN"
 
-    if (( idx < 0 )); then
-        while (( ${#HELP_TEXTS[@]} < 21 )); do help_add "" "$C_DARKGRAY"; done
+    if (( idx < 0 || idx >= ${#IT_CODES[@]} )); then
+        while (( ${#HELP_TEXTS[@]} < 21 )); do
+            help_add "" "$C_DARKGRAY"
+        done
         return
     fi
 
-    local nome cat desc pkg special
-    nome=$(truncar "${IT_TEXTS[$idx]}" 36)
+    # 2: Nome do Item
+    local nome="${IT_TEXTS[$idx]:-Item}"
+    if (( ${#nome} > 43 )); then
+        nome="${nome:0:42}…"
+    fi
     help_add " $nome" "$C_WHITE"
 
-    cat=$(truncar " Categoria: ${IT_CATS[$idx]}" 37)
+    # 3: Categoria
+    local cat="${IT_CATS[$idx]:-}"
+    if [[ -n "$cat" ]]; then
+        cat=" Categoria: $cat"
+        if (( ${#cat} > 44 )); then
+            cat="${cat:0:43}…"
+        fi
+    fi
     help_add "$cat" "$C_DARKGRAY"
 
-    desc="${IT_DESCS[$idx]:-Sem descrição adicional para este item.}"
+    # 4: Linha em branco
     help_add "" "$C_DARKGRAY"
+
+    # 5: Rótulo Descrição
     help_add " Descrição:" "$C_CYAN"
 
-    # Word-wrap da descrição em até 3 linhas de 35 colunas
-    local -a wrapped=()
-    mapfile -t wrapped < <(word_wrap "$desc" 35)
+    # 6..8: Word-wrap da descrição em até 3 linhas de 43 caracteres
+    local desc="${IT_DESCS[$idx]:-Sem descrição adicional para este item.}"
+    local -a desc_lines=()
+    mapfile -t desc_lines < <(word_wrap "$desc" 43)
     local k
     for ((k = 0; k < 3; k++)); do
-        if (( k < ${#wrapped[@]} )); then
-            help_add " ${wrapped[$k]}" "$C_GRAY"
+        if (( k < ${#desc_lines[@]} )); then
+            local d="${desc_lines[$k]}"
+            if (( ${#d} > 44 )); then
+                d="${d:0:44}"
+            fi
+            help_add " $d" "$C_GRAY"
         else
             help_add "" "$C_GRAY"
         fi
     done
 
+    # 9: Linha em branco
     help_add "" "$C_DARKGRAY"
-    help_add " Método / Pacote:" "$C_CYAN"
-    pkg=$(truncar "   ${IT_PKGS[$idx]:-N/A}" 37)
+
+    # 10: Rótulo Pacote
+    help_add " Identificador / Pacote:" "$C_CYAN"
+
+    # 11: ID do Pacote
+    local pkg="   ${IT_PKGS[$idx]:-N/A}"
+    if (( ${#pkg} > 45 )); then
+        pkg="${pkg:0:44}…"
+    fi
     help_add "$pkg" "$C_WHITE"
 
+    # 12: Linha em branco
     help_add "" "$C_DARKGRAY"
+
+    # 13: Rótulo Status
     help_add " Status no Linux:" "$C_CYAN"
 
-    special=0
+    # 14: Valor Status
+    local special=0
     [[ "${IT_SPECIAL[$idx]}" == "1" ]] && special=1
     if (( special )); then
         help_add "   [*] Rotina em Lote / Especial" "$C_YELLOW"
@@ -856,56 +892,84 @@ montar_help_lines() {
         help_add "   [ ] Não instalado / Pendente" "$C_DARKGRAY"
     fi
 
+    # 15: Linha em branco
     help_add "" "$C_DARKGRAY"
-    help_add "$(rep_char '─' 38)" "$C_DARKCYAN"
+
+    # 16: Linha divisória inferior
+    help_add "$(rep_char '─' 45)" "$C_DARKCYAN"
+
+    # 17..20: Atalhos do Setup
     help_add " Atalhos do Setup:" "$C_DARKGRAY"
-    help_add "   [Espaço]  Marca p/ fila" "$C_GRAY"
+    help_add "   [Espaço]  Marca p/ fila em lote" "$C_GRAY"
     help_add "   [Enter]   Executa seleção" "$C_GRAY"
     help_add "   [Q]       Fecha o terminal" "$C_GRAY"
 
-    while (( ${#HELP_TEXTS[@]} < 21 )); do help_add "" "$C_DARKGRAY"; done
+    while (( ${#HELP_TEXTS[@]} < 21 )); do
+        help_add "" "$C_DARKGRAY"
+    done
 }
 
-# Barra de menus estilo BIOS (abas sempre visíveis no topo)
+# Barra de menus estilo BIOS (abas sempre visíveis no topo, 120 colunas)
 mostrar_barra_abas() {
     local aba="$1"
-    local -a abas=(SISTEMA REDE APPS DEV CONFIG PERFIS)
-    local s="" a
-    for a in "${abas[@]}"; do
-        if [[ "$a" == "$aba" ]]; then
-            s+="${C_TAB}[ $a ]${C_RESET}  "
-        else
-            s+="${C_DARKGRAY}[ $a ]${C_RESET}  "
+    local inner=$((LARGURA - 4))
+    local -a tabs=("SISTEMA" "REDE" "APPS" "DEV" "CONFIG" "PERFIS")
+    local -a labels_in=("  Sistema  " "  Rede  " "  Apps  " "  Dev  " "  Config  " "  Perfis  ")
+    local -a labels_ac=("[ SISTEMA ]" "[ REDE ]" "[ APPS ]" "[ DEV ]" "[ CONFIG ]" "[ PERFIS ]")
+
+    local total_tab_len=0 i
+    for i in "${!tabs[@]}"; do
+        total_tab_len=$((total_tab_len + ${#labels_in[$i]}))
+    done
+    local spaces=$((inner - total_tab_len))
+    local num_gaps=$(( ${#tabs[@]} + 1 ))
+    local base_gap=$(( spaces / num_gaps ))
+    local extra=$(( spaces % num_gaps ))
+
+    local tab_line="" g gap
+    for ((g = 0; g < num_gaps; g++)); do
+        gap=$base_gap
+        (( g < extra )) && gap=$((gap + 1))
+        tab_line+="$(rep_char ' ' "$gap")"
+        if (( g < ${#tabs[@]} )); then
+            if [[ "${tabs[$g]}" == "$aba" ]]; then
+                tab_line+="${C_TAB}${labels_ac[$g]}${C_RESET}"
+            else
+                tab_line+="${C_DARKGRAY}${labels_in[$g]}${C_RESET}"
+            fi
         fi
     done
-    linha_conteudo "$s" ""
+
+    printf '%s\n' "${C_CYAN}║ ${tab_line}${C_CYAN} ║${C_RESET}"
 }
 
-# Cabeçalho da tela: título + badge + linha de informações do sistema
+# Cabeçalho da tela: título + badge + linha de informações do sistema (telemetria)
 mostrar_cabecalho() {
     local aba="$1"
+    local inner=$((LARGURA - 4))
     local titulo=" LINUX-TOOLBOX TUI · Setup Utility"
     local badge="[ LINUX ] "
-    local inner=$((LARGURA - 4))
     local esp=$((inner - ${#titulo} - ${#badge}))
     (( esp < 0 )) && esp=0
-    linha_conteudo "${C_BOLD}${C_CYAN}${titulo}${C_RESET}$(rep_char ' ' "$esp")${C_CYAN}${badge}${C_RESET}" ""
+    printf '%s\n' "${C_CYAN}║ ${titulo}$(rep_char ' ' "$esp")${badge} ║${C_RESET}"
 
-    local data host user ip info
+    local data host user ip info pad_info
     data="$(date +%d/%m/%Y)"
     host="$(hostname)"
     user="${REAL_USER:-$(id -un)}"
     ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
-    [ -z "$ip" ] && ip="N/A"
-    info=" TELA: $aba | Data: $data | Computador: $host | Usuário: $user | IP: $ip"
-    linha_conteudo "$info" "$C_DARKGRAY"
+    [ -z "$ip" ] && ip="Sem Rede"
+    info=" Data: $data | Computador: $host | Usuário: $user | IP: $ip"
+    pad_info=$((inner - ${#info}))
+    (( pad_info < 0 )) && pad_info=0
+    printf '%s\n' "${C_CYAN}║ ${C_DARKGRAY}${info}$(rep_char ' ' "$pad_info")${C_CYAN} ║${C_RESET}"
 }
 
-# Renderiza a tela inteira (30 linhas estilo Setup Utility)
+# Renderiza a tela inteira (30 linhas estilo Setup Utility — 120x30)
 show_bios_screen() {
     local aba="$1"
     if (( TELA_SUJA )); then
-        printf '\e[2J'
+        clear 2>/dev/null || printf '\e[2J'
         TELA_SUJA=0
     fi
     printf '\e[H'
@@ -923,92 +987,141 @@ show_bios_screen() {
     for ((j = 0; j < PAGE_SIZE; j++)); do
         i=$((start + j))
 
-        # O painel Item Help (direita) é renderizado em TODAS as 21 linhas,
-        # mesmo quando a lista (esquerda) está vazia — fiel ao Setup Utility.
-        local rtext="${HELP_TEXTS[$j]}"
-        rtext="$(truncar "$rtext" "$W_HELP")"
-        rtext="$(printf '%-*s' "$W_HELP" "$rtext")"
-        local right="$C_RESET${HELP_COLORS[$j]}$rtext$C_RESET"
+        # --- LADO ESQUERDO: LISTA DE ITENS (68 colunas) ---
+        local left_full left_color is_selected=0
+        (( i == SEL )) && is_selected=1
 
         if (( i < total )); then
             local code="${IT_CODES[$i]}"
             local inst=0 special=0 mark=" " cursor="  "
-
             item_instalado "$i" && inst=1
             [[ "${IT_SPECIAL[$i]}" == "1" ]] && special=1
 
-            if (( inst )) || [[ -n "${MARKS[$code]+x}" ]]; then mark="✓"; fi
-            (( i == SEL )) && cursor="► "
-
-            local prefix="[$mark] $(printf '%-4s' "$code") "
-            local sufixo=""
-            (( inst && ! special )) && sufixo="[INSTALADO]"
-
-            local suf_len=0
-            [[ -n "$sufixo" ]] && suf_len=$(( ${#sufixo} + 1 ))
-
-            local nome
-            nome="$(truncar "${IT_TEXTS[$i]}" $(( W_LISTA - ${#cursor} - ${#prefix} - suf_len )))"
-
-            local texto="${cursor}${prefix}${nome}"
-            [[ -n "$sufixo" ]] && texto="${texto} $sufixo"
-            texto="$(printf '%-*s' "$W_LISTA" "$texto")"
-
-            local cor="$C_WHITE"
-            if (( i == SEL )); then
-                cor="$C_BLOCK"
-            elif (( special )); then
-                cor="$C_YELLOW"
-            elif (( inst )); then
-                cor="$C_GREEN"
-            elif [[ -n "${MARKS[$code]+x}" ]]; then
-                cor="$C_CYAN"
+            if (( inst )) || [[ -n "${MARKS[$code]+x}" ]]; then
+                mark="✓"
+            fi
+            if (( is_selected )); then
+                cursor="► "
             fi
 
-            printf '%s\n' "$C_CYAN║ $C_RESET${cor}${texto}${C_RESET}$C_CYAN ║ $C_RESET${right}$C_CYAN ║$C_RESET"
+            local prefix
+            prefix="$(printf "%s[%s] %-4s " "$cursor" "$mark" "$code")"
+            local sufixo=""
+            left_color="$C_GRAY"
+            if (( special )); then
+                left_color="$C_YELLOW"
+            elif (( inst )); then
+                left_color="$C_GREEN"
+                sufixo="[INSTALADO]"
+            elif [[ -n "${MARKS[$code]+x}" ]]; then
+                left_color="$C_CYAN"
+            fi
+
+            local max_nome=$(( W_LISTA - ${#prefix} - ${#sufixo} ))
+            if [[ -n "$sufixo" ]]; then
+                max_nome=$((max_nome - 1))
+            fi
+
+            local nome="${IT_TEXTS[$i]}"
+            if (( ${#nome} > max_nome )); then
+                local cut_len=$((max_nome - 1))
+                (( cut_len < 0 )) && cut_len=0
+                nome="${nome:0:$cut_len}…"
+            fi
+
+            local meio="${prefix}${nome}"
+            if [[ -n "$sufixo" ]]; then
+                local pad_len=$(( W_LISTA - ${#sufixo} - ${#meio} ))
+                (( pad_len < 0 )) && pad_len=0
+                left_full="${meio}$(rep_char ' ' "$pad_len")${sufixo}"
+            else
+                local pad_len=$(( W_LISTA - ${#meio} ))
+                (( pad_len < 0 )) && pad_len=0
+                left_full="${meio}$(rep_char ' ' "$pad_len")"
+            fi
+            if (( ${#left_full} > W_LISTA )); then
+                left_full="${left_full:0:$W_LISTA}"
+            fi
         else
-            printf '%s\n' "$C_CYAN║ $C_RESET$(rep_char ' ' "$W_LISTA")$C_CYAN ║ $C_RESET${right}$C_CYAN ║$C_RESET"
+            left_full="$(rep_char ' ' "$W_LISTA")"
+            left_color="$C_GRAY"
+        fi
+
+        # --- LADO DIREITO: PAINEL DE AJUDA DO ITEM (45 colunas) ---
+        local rtext="${HELP_TEXTS[$j]:-}"
+        local rcolor="${HELP_COLORS[$j]:-$C_DARKGRAY}"
+        if (( ${#rtext} > W_HELP )); then
+            rtext="${rtext:0:$((W_HELP - 1))}…"
+        fi
+        local pad_r=$(( W_HELP - ${#rtext} ))
+        (( pad_r < 0 )) && pad_r=0
+        local rformatted="${rtext}$(rep_char ' ' "$pad_r")"
+
+        # Linha montada: "║ " (2) + Left (68) + " ║ " (3) + Right (45) + " ║" (2) = 120 colunas
+        if (( is_selected && i < total )); then
+            printf '%s%s%s%s%s\n' \
+                "${C_CYAN}║ ${C_RESET}" "${C_BLOCK}${left_full}${C_RESET}" "${C_CYAN} ║ ${C_RESET}" "${rcolor}${rformatted}${C_RESET}" "${C_CYAN} ║${C_RESET}"
+        else
+            printf '%s%s%s%s%s\n' \
+                "${C_CYAN}║ ${C_RESET}" "${left_color}${left_full}${C_RESET}" "${C_CYAN} ║ ${C_RESET}" "${rcolor}${rformatted}${C_RESET}" "${C_CYAN} ║${C_RESET}"
         fi
     done
 
+    # ---- rodapé: dicas de navegação espaçadas estilo BIOS ----
     linha_split_footer
     montar_dicas_footer
     linha_borda 0
 }
 
-# Rodapé com dicas de navegação distribuídas proporcionalmente (igual win)
+# Rodapé com dicas de navegação distribuídas proporcionalmente (fiel ao win-toolbox.ps1)
 montar_dicas_footer() {
-    local -a nav=("←→ Aba" "↑↓ Mover" "Espaço Marcar" "Enter Executa")
-    if (( ${#MARKS[@]} > 0 )); then nav+=("Marcados: ${#MARKS[@]}"); fi
-    if (( PAGINAS > 1 )); then nav+=("Pg $((PAGE + 1))/$PAGINAS"); fi
+    local inner=$((LARGURA - 4))
+    local -a nav=("←→ Trocar Menu" "↑↓ Mover" "Espaço [✓] Marcar" "Enter Executar")
+    if (( ${#MARKS[@]} > 0 )); then
+        nav+=("Marcados: ${#MARKS[@]}")
+    fi
+    if (( PAGINAS > 1 )); then
+        nav+=("Pg $((PAGE + 1))/$PAGINAS")
+    fi
     nav+=("Q Sair")
 
     local total_len=0 t
-    for t in "${nav[@]}"; do total_len=$((total_len + ${#t})); done
-
-    local total_spaces=$(( (LARGURA - 4) - total_len ))
-    (( total_spaces < 0 )) && total_spaces=0
-
-    local gaps=$(( ${#nav[@]} + 1 ))
-    local base=$(( total_spaces / gaps )) extra=$(( total_spaces % gaps ))
-    local linha="" g gap
-    for ((g = 0; g < gaps; g++)); do
-        gap=$base
-        (( g < extra )) && gap=$((gap + 1))
-        linha+="$(rep_char ' ' "$gap")"
-        (( g < ${#nav[@]} )) && linha+="${nav[$g]}"
+    for t in "${nav[@]}"; do
+        total_len=$((total_len + ${#t}))
     done
 
-    linha_conteudo "$linha" "$C_CYAN"
+    local total_spaces=$(( inner - total_len ))
+    (( total_spaces < 0 )) && total_spaces=0
+
+    local num_gaps=$(( ${#nav[@]} + 1 ))
+    local base_gap=$(( total_spaces / num_gaps ))
+    local extra=$(( total_spaces % num_gaps ))
+
+    local linha="" g gap
+    for ((g = 0; g < num_gaps; g++)); do
+        gap=$base_gap
+        (( g < extra )) && gap=$((gap + 1))
+        linha+="$(rep_char ' ' "$gap")"
+        if (( g < ${#nav[@]} )); then
+            linha+="${nav[$g]}"
+        fi
+    done
+    if (( ${#linha} > inner )); then
+        linha="${linha:0:$inner}"
+    elif (( ${#linha} < inner )); then
+        linha+="$(rep_char ' ' $((inner - ${#linha})))"
+    fi
+
+    printf '%s\n' "${C_CYAN}║ ${linha} ║${C_RESET}"
 }
 
 # -----------------------------------------------------------------------------
 # LEITURA DE TECLAS (100% nativa — sem gum, sem instalação)
-# Códigos: 1↑ 2↓ 3→ 4← 5Espaço 6Enter 7PgUp 8PgDn 9Esc 10Q 11A 12R 13D 14C
-#          15S 16P | 21..26 = teclas 1..6 (atalhos diretos para cada aba)
+# Códigos: 1↑ 2↓ 3→ 4← 5Espaço 6Enter 7PgUp 8PgDn 9Esc 10Q 17Home 18End
+#          21..26 = teclas 1..6 ou S/R/A/D/C/P (atalhos diretos para cada aba)
 # -----------------------------------------------------------------------------
 ler_tecla() {
-    local key ch1 ch2
+    local key ch1 ch2 ch3
     TECLA=0
 
     if ! IFS= read -rsn1 key; then
@@ -1017,34 +1130,67 @@ ler_tecla() {
     fi
 
     if [[ "$key" == $'\e' ]]; then
-        if IFS= read -rsn1 ch1 -t 0.05; then
+        if IFS= read -rsn1 -t 0.05 ch1; then
             if [[ "$ch1" == '[' ]]; then
-                if IFS= read -rsn1 ch2 -t 0.05; then
+                if IFS= read -rsn1 -t 0.05 ch2; then
                     case "$ch2" in
-                        A) TECLA=1 ;; B) TECLA=2 ;;
-                        C) TECLA=3 ;; D) TECLA=4 ;;
-                        5) TECLA=7 ;; 6) TECLA=8 ;;
+                        A) TECLA=1 ;; # Up
+                        B) TECLA=2 ;; # Down
+                        C) TECLA=3 ;; # Right
+                        D) TECLA=4 ;; # Left
+                        H) TECLA=17 ;; # Home
+                        F) TECLA=18 ;; # End
+                        1|7)
+                            read -rsn1 -t 0.05 ch3 2>/dev/null || true
+                            TECLA=17 # Home
+                            ;;
+                        4|8)
+                            read -rsn1 -t 0.05 ch3 2>/dev/null || true
+                            TECLA=18 # End
+                            ;;
+                        5)
+                            read -rsn1 -t 0.05 ch3 2>/dev/null || true
+                            TECLA=7 # PageUp
+                            ;;
+                        6)
+                            read -rsn1 -t 0.05 ch3 2>/dev/null || true
+                            TECLA=8 # PageDown
+                            ;;
+                        *) TECLA=9 ;; # Esc
+                    esac
+                else
+                    TECLA=9
+                fi
+            elif [[ "$ch1" == 'O' ]]; then
+                if IFS= read -rsn1 -t 0.05 ch2; then
+                    case "$ch2" in
+                        H) TECLA=17 ;; # Home
+                        F) TECLA=18 ;; # End
                         *) TECLA=9 ;;
                     esac
-                else TECLA=9; fi
-            else TECLA=9; fi
-        else TECLA=9; fi
+                else
+                    TECLA=9
+                fi
+            else
+                TECLA=9
+            fi
+        else
+            TECLA=9 # Tecla Esc pura
+        fi
         return
     fi
 
     case "$key" in
         ' ')                 TECLA=5 ;;
         $'\n'|$'\r')         TECLA=6 ;;
-        $'\t')               TECLA=3 ;;
+        $'\t')               TECLA=3 ;; # Tab = Próxima aba (igual RightArrow)
         [qQ])                TECLA=10 ;;
-        [sS])                TECLA=15 ;;
-        [aA])                TECLA=11 ;;
-        [rR])                TECLA=12 ;;
-        [dD])                TECLA=13 ;;
-        [cC])                TECLA=14 ;;
-        [pP])                TECLA=16 ;;
-        1) TECLA=21 ;; 2) TECLA=22 ;; 3) TECLA=23 ;;
-        4) TECLA=24 ;; 5) TECLA=25 ;; 6) TECLA=26 ;;
+        [sS]|1)              TECLA=21 ;;
+        [rR]|2)              TECLA=22 ;;
+        [aA]|3)              TECLA=23 ;;
+        [dD]|4)              TECLA=24 ;;
+        [cC]|5)              TECLA=25 ;;
+        [pP]|6)              TECLA=26 ;;
         *)                   TECLA=0 ;;
     esac
 }
@@ -1111,30 +1257,39 @@ read_bios_menu() {
                 esac
                 ;;
             7)  # PageUp
-                if (( PAGE > 0 )); then PAGE=$((PAGE - 1)); SEL=$(( PAGE * PAGE_SIZE )); fi
+                if (( PAGE > 0 )); then
+                    PAGE=$((PAGE - 1))
+                    SEL=$(( PAGE * PAGE_SIZE ))
+                fi
                 ;;
             8)  # PageDown
-                if (( PAGE < PAGINAS - 1 )); then PAGE=$((PAGE + 1)); SEL=$(( PAGE * PAGE_SIZE )); fi
+                if (( PAGE < PAGINAS - 1 )); then
+                    PAGE=$((PAGE + 1))
+                    SEL=$(( PAGE * PAGE_SIZE ))
+                fi
                 ;;
-            11) printf '%s' "TAB_APPS"; return ;;   # A
-            12) printf '%s' "TAB_REDE"; return ;;   # R
-            13) printf '%s' "TAB_DEV"; return ;;    # D
-            14) printf '%s' "TAB_CONFIG"; return ;; # C
-            15) printf '%s' "TAB_SISTEMA"; return ;; # S
-            16) printf '%s' "TAB_PERFIS"; return ;; # P
-            21) printf '%s' "TAB_SISTEMA"; return ;; # 1
-            22) printf '%s' "TAB_REDE"; return ;;    # 2
-            23) printf '%s' "TAB_APPS"; return ;;    # 3
-            24) printf '%s' "TAB_DEV"; return ;;     # 4
-            25) printf '%s' "TAB_CONFIG"; return ;;  # 5
-            26) printf '%s' "TAB_PERFIS"; return ;;  # 6
+            17) # Home
+                PAGE=0
+                SEL=0
+                ;;
+            18) # End
+                PAGE=$((PAGINAS - 1))
+                SEL=$((total - 1))
+                (( SEL < 0 )) && SEL=0
+                ;;
+            21) printf '%s' "TAB_SISTEMA"; return ;; # 1 / S
+            22) printf '%s' "TAB_REDE"; return ;;    # 2 / R
+            23) printf '%s' "TAB_APPS"; return ;;    # 3 / A
+            24) printf '%s' "TAB_DEV"; return ;;     # 4 / D
+            25) printf '%s' "TAB_CONFIG"; return ;;  # 5 / C
+            26) printf '%s' "TAB_PERFIS"; return ;;  # 6 / P
             5)  # Espaço → marca/desmarca
                 code="${IT_CODES[$SEL]}"
                 special=0
                 [[ "${IT_SPECIAL[$SEL]}" == "1" ]] && special=1
-                if (( ! special )) && ! item_instalado "$SEL"; then
+                if (( special )) || ! item_instalado "$SEL"; then
                     if [[ -n "${MARKS[$code]+x}" ]]; then
-                        unset 'MARKS["$code"]'
+                        unset 'MARKS[$code]'
                     else
                         MARKS["$code"]=1
                     fi
@@ -1386,18 +1541,34 @@ dispatch_execution() {
         return
     fi
 
-    TELA_SUJA=1
-    printf "\n${C_CYAN}╭─ EXECUTANDO TAREFAS SELECIONADAS ${C_RESET}"
-    printf '%*s' $((50 - ${#escolha})) ''
-    printf "${C_CYAN}[ PROCESSO ATIVO ] ─╮${C_RESET}\n"
-    linha_conteudo " Lote em andamento: $escolha" "$C_YELLOW"
-    printf "${C_CYAN}╰────────────────────────────────────────────────────────────────────────────────────────╯${C_RESET}\n"
+    clear 2>/dev/null || printf '\e[2J\e[H'
+    tput cnorm 2>/dev/null || true
+
+    local inner=$((LARGURA - 4))
+    printf '%s\n' "${C_CYAN}╭─ EXECUTANDO TAREFAS SELECIONADAS $(rep_char '─' 63) [ PROCESSO ATIVO ] ─╮${C_RESET}"
+    local msg=" Lote em andamento: $escolha"
+    if (( ${#msg} > inner )); then
+        msg="${msg:0:$((inner - 3))}..."
+    fi
+    local pad_m=$(( inner - ${#msg} ))
+    (( pad_m < 0 )) && pad_m=0
+    printf '%s%s%s\n' "${C_CYAN}│ ${C_YELLOW}${msg}$(rep_char ' ' "$pad_m")" "${C_CYAN} │${C_RESET}"
+    printf '%s\n\n' "${C_CYAN}╰$(rep_char '─' $((LARGURA - 2)))╯${C_RESET}"
 
     execute_batch_options "$escolha"
+
+    printf '\n%s\n' "${C_GREEN}╭$(rep_char '─' $((LARGURA - 2)))╮${C_RESET}"
+    local concl=" [✓] Todas as tarefas solicitadas foram concluídas!"
+    local pad_c=$(( inner - ${#concl} ))
+    (( pad_c < 0 )) && pad_c=0
+    printf '%s%s%s\n' "${C_GREEN}│ ${concl}$(rep_char ' ' "$pad_c")" " │${C_RESET}"
+    printf '%s\n' "${C_GREEN}╰$(rep_char '─' $((LARGURA - 2)))╯${C_RESET}"
+
+    wait_user
     INSTALLED_CACHE=()
     MARKS=()
     TELA_SUJA=1
-    wait_user
+    tput civis 2>/dev/null || true
 }
 
 wait_user() {
@@ -1426,13 +1597,22 @@ restaurar_terminal() {
 }
 
 preview_tela() {
-    # --preview: renderiza a aba SISTEMA sem exigir root (para desenvolvimento)
+    # --preview [ABA]: renderiza a aba especificada sem exigir root (padrão: SISTEMA)
+    local aba="${1:-SISTEMA}"
+    aba="$(echo "$aba" | tr '[:lower:]' '[:upper:]')"
     detectar_distro
     detectar_usuario_real
-    preparar_menu_sistema
+    case "$aba" in
+        REDE)   preparar_menu_rede ;;
+        APPS)   preparar_menu_apps ;;
+        DEV)    preparar_menu_dev ;;
+        CONFIG) preparar_menu_config ;;
+        PERFIS) preparar_menu_perfis ;;
+        *)      aba="SISTEMA"; preparar_menu_sistema ;;
+    esac
     montar_help_lines 0
     TELA_SUJA=1
-    show_bios_screen SISTEMA
+    show_bios_screen "$aba"
     printf '%s\n' "$C_RESET"
     exit 0
 }
@@ -1440,7 +1620,7 @@ preview_tela() {
 main() {
     case "${1:-}" in
         --preview)
-            preview_tela
+            preview_tela "${2:-SISTEMA}"
             ;;
         "")
             ;;

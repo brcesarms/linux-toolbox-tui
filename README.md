@@ -33,27 +33,28 @@ sudo ./linux-toolbox.sh
 
 ## 💎 Destaques Visuais & Experiência TUI (V3.0)
 
-* 🖥️ **Tela Alternativa:** usa `tput smcup`/`rmcup` — o prompt do shell não suja o terminal ao sair.
-* 🟩 **Cursor em Bloco Verde:** a linha selecionada ganha fundo verde estilo Setup (igual ao `win-toolbox.ps1`).
-* 📋 **Painel Item Help (direita):** descrição, método/pacote, categoria e status de cada item — atualizado conforme você navega.
-* 🟡 **Aba Ativa em Fundo Âmbar:** `[ SISTEMA ] [ REDE ] ...` com a aba atual destacada.
-* 📑 **6 Abas com Atalhos:** `S`istema · `R`ede · `A`pps · `D`ev · `C`onfig · `P`erfis (ou `1..6`).
-* 🟢 **Status Dinâmico em Tempo Real:** `[✓]` Verde = instalado/ativo; `[ ]` = pendente — com cache de verificação para renderização instantânea.
-* 📐 **Grid de 100 Colunas:** bordas duplas Unicode `╔═╗ ║ ╠ ╣` e paginação com 21 linhas/aba.
+* 🖥️ **Interface estilo BIOS / Setup Utility (120x30):** bordas duplas `╔ ║ ╝`, ocupando perfeitamente a resolução padrão da janela (120 colunas x 30 linhas), abas superiores sempre visíveis e cursor de seleção em bloco verde — fiel ao firmware e espelhando o `win-toolbox-tui`.
+* 💡 **Painel Lateral "Item Help" Dinâmico:** ao navegar com `↑` e `↓` pela lista à esquerda (68 colunas), o painel à direita (45 colunas) exibe instantaneamente nome, categoria, descrição com quebra de linha, pacote e status.
+* ⌨️ **Navegação 100% nativa:** `← / →` ou `Tab` alternam abas · `↑ / ↓` movem · `Home / End` vão ao início/fim · `PgUp / PgDn` rolam páginas · Espaço marca `[✓]` · Enter executa · Esc ou Q sai.
+* 🟢 **Detecção de instalados:** cada item aparece marcado com `[✓]` e `[INSTALADO]` em verde quando já presente no sistema; itens instalados não são remarcáveis.
+* 📑 **Atalhos diretos entre abas:** `1` ou `S` (Sistema) · `2` ou `R` (Rede) · `3` ou `A` (Apps) · `4` ou `D` (Dev) · `5` ou `C` (Config) · `6` ou `P` (Perfis).
 * 🔄 **Detecção Automática de Distro:** identifica `apt`, `dnf` ou `pacman` e o serviço correto (`ssh` vs `sshd`).
 * 🧩 **Execução em Lote:** marca com `Espaço` ou digita códigos separados por vírgula (ex: `D1,D4,C1,P1`).
-* ⏭️ **Modo Headless:** `./linux-toolbox.sh S,R1,D1,D4` executa direto, sem remontar a tela (espelha o `-ExecutarLote` do win).
+* ⏭️ **Modo Headless:** `./linux-toolbox.sh S,R1,D1,D4` executa direto, sem abrir a TUI.
 * 👤 **Usuário Real Respeitado:** Homebrew e grupo `docker` são configurados para `SUDO_USER`, não para root.
 
 ### 🕹️ Teclas de Navegação
 
 | Tecla | Ação |
 | :--- | :--- |
-| `↑` / `↓` | Mover seleção (com rolagem por página) |
-| `←` / `→` | Trocar aba |
-| `Espaço` | Marcar/desmarcar item para a fila `[✓]` |
-| `Enter` | Executar item(s) selecionado(s) |
-| `Q` / `Esc` | Sair |
+| `↑` / `↓` | Mover seleção (com rolagem automática de página) |
+| `←` / `→` ou `Tab` | Trocar menu / abas (navegação circular) |
+| `Home` / `End` | Ir para o topo ou final da lista |
+| `PgUp` / `PgDn` | Avançar ou recuar página inteira |
+| `Espaço` | Marcar/desmarcar item para a fila em lote `[✓]` |
+| `Enter` | Executar seleção atual (ou todos os marcados) |
+| `1..6` ou `S/R/A/D/C/P` | Atalho direto para cada aba |
+| `Q` / `Esc` | Sair / fechar o terminal |
 
 ---
 
