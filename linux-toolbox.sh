@@ -80,6 +80,7 @@ declare -g PAGINAS=1
 declare -g TELA_SUJA=1        # 1 = precisa limpar a tela antes de renderizar
 declare -g TECLA=0            # última tecla lida pelo motor
 declare -g MENU_RES=""         # resultado da seleção do menu (sem subshell)
+declare -g IS_HEADLESS=0       # 1 = modo headless direto (sem prompts interativos)
 
 # Arrays paralelos dos itens do menu atual (populados por preparar_menu_*)
 declare -g -a IT_CODES=() IT_TEXTS=() IT_DESCS=() IT_PKGS=() IT_CATS=() IT_KEYS=() IT_SPECIAL=()
@@ -120,8 +121,8 @@ detectar_distro() {
 
 require_root() {
     if [ "$(id -u)" -ne 0 ]; then
-        printf "\n${C_YELLOW}[!] Privilégios de root são necessários.${C_RESET}\n"
-        printf "${C_CYAN}[*] Use: sudo %s${C_RESET}\n\n" "$0"
+        printf '\n%s[!] Privilégios de root são necessários.%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s[*] Use: sudo %s%s\n\n' "$C_CYAN" "$0" "$C_RESET"
         exit 1
     fi
 }
@@ -234,6 +235,8 @@ testa_status() {
         return $?
     fi
 
+    local h
+    h="$(home_usuario)"
     local result=1
     case "$key" in
         sshd)
@@ -241,6 +244,7 @@ testa_status() {
             ;;
         brave)
             command -v brave-browser >/dev/null 2>&1 && result=0
+            command -v flatpak >/dev/null 2>&1 && flatpak info com.brave.Browser >/dev/null 2>&1 && result=0
             ;;
         btop)
             command -v btop >/dev/null 2>&1 && result=0
@@ -257,9 +261,7 @@ testa_status() {
             command -v distrobox >/dev/null 2>&1 && result=0
             ;;
         brew)
-            local h
-            h="$(home_usuario)"
-            { [ -x "/home/linuxbrew/.linuxbrew/bin/brew" ] || [ -x "${h}/.linuxbrew/bin/brew" ]; } && result=0
+            { [ -x "/home/linuxbrew/.linuxbrew/bin/brew" ] || [ -x "${h}/.linuxbrew/bin/brew" ] || command -v brew >/dev/null 2>&1; } && result=0
             ;;
         vscode)
             command -v code >/dev/null 2>&1 && result=0
@@ -270,13 +272,13 @@ testa_status() {
             command -v flatpak >/dev/null 2>&1 && flatpak info md.obsidian.Obsidian >/dev/null 2>&1 && result=0
             ;;
         opencode)
-            command -v opencode >/dev/null 2>&1 && result=0
+            { command -v opencode >/dev/null 2>&1 || [ -x "${h}/.local/bin/opencode" ] || [ -x "${h}/.opencode/bin/opencode" ] || [ -x "/usr/local/bin/opencode" ]; } && result=0
             ;;
         antigravity)
-            command -v antigravity >/dev/null 2>&1 && result=0
+            { command -v agy >/dev/null 2>&1 || command -v antigravity >/dev/null 2>&1 || [ -x "${h}/.local/bin/agy" ] || [ -x "${h}/.local/bin/antigravity" ] || [ -x "/usr/local/bin/agy" ] || [ -x "/usr/local/bin/antigravity" ]; } && result=0
             ;;
         nerdfont)
-            fc-list 2>/dev/null | grep -qi "JetBrainsMono" && result=0
+            { fc-list 2>/dev/null | grep -qi "JetBrainsMono" || [ -d "/usr/local/share/fonts/NerdFonts" ] || [ -d "${h}/.local/share/fonts/NerdFonts" ]; } && result=0
             ;;
         flatpak)
             command -v flatpak >/dev/null 2>&1 && flatpak remotes 2>/dev/null | grep -qi "flathub" && result=0
@@ -298,7 +300,42 @@ testa_status() {
 }
 
 # ==============================================================================
-# 5. HELPER MULTI-DISTRO DE INSTALAÇÃO DE PACOTES
+# 5. LOGGING AUXILIAR SEGURO (conformidade estrita com ShellCheck)
+# ==============================================================================
+log_header() {
+    printf '\n%s========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s[*] %s%s\n' "$C_CYAN" "$1" "$C_RESET"
+    printf '%s========================================================%s\n' "$C_CYAN" "$C_RESET"
+}
+
+log_header_success() {
+    printf '\n%s========================================================%s\n' "$C_GREEN" "$C_RESET"
+    printf '%s[*] %s%s\n' "$C_GREEN" "$1" "$C_RESET"
+    printf '%s========================================================%s\n' "$C_GREEN" "$C_RESET"
+}
+
+log_step() {
+    printf '%s%s%s\n' "$C_GRAY" "$1" "$C_RESET"
+}
+
+log_ok() {
+    printf '%s%s%s\n' "$C_GREEN" "$1" "$C_RESET"
+}
+
+log_warn() {
+    printf '%s%s%s\n' "$C_YELLOW" "$1" "$C_RESET"
+}
+
+log_err() {
+    printf '%s%s%s\n' "$C_RED" "$1" "$C_RESET"
+}
+
+log_info() {
+    printf '%s%s%s\n' "$C_CYAN" "$1" "$C_RESET"
+}
+
+# ==============================================================================
+# 6. HELPER MULTI-DISTRO DE INSTALAÇÃO DE PACOTES
 # ==============================================================================
 # Uso: instalar_pacotes "pacotes_apt" "pacotes_dnf" "pacotes_pacman"
 instalar_pacotes() {
@@ -308,41 +345,39 @@ instalar_pacotes() {
         dnf)    lista="$2" ;;
         pacman) lista="$3" ;;
         *)
-            printf "${C_RED}[!] Gerenciador de pacotes desconhecido (${PKG_MGR}).${C_RESET}\n"
+            log_err "[!] Gerenciador de pacotes desconhecido (${PKG_MGR})."
             return 1
             ;;
     esac
 
     [ -z "$lista" ] && return 0
 
-    printf "${C_YELLOW}[+] Instalando via ${PKG_MGR}: ${lista}${C_RESET}\n"
+    log_warn "[+] Instalando via ${PKG_MGR}: ${lista}"
     # shellcheck disable=SC2086 # intencional: expansão de lista de pacotes em word splitting
     case "$PKG_MGR" in
         apt)
             apt-get update -y >/dev/null 2>&1 || true
             DEBIAN_FRONTEND=noninteractive apt-get install -y $lista >/dev/null 2>&1 \
-                || printf "${C_RED}[!] Falha ao instalar pacotes (apt): ${lista}${C_RESET}\n"
+                || log_err "[!] Falha ao instalar pacotes (apt): ${lista}"
             ;;
         dnf)
             dnf install -y $lista >/dev/null 2>&1 \
-                || printf "${C_RED}[!] Falha ao instalar pacotes (dnf): ${lista}${C_RESET}\n"
+                || log_err "[!] Falha ao instalar pacotes (dnf): ${lista}"
             ;;
         pacman)
             pacman -Sy --noconfirm $lista >/dev/null 2>&1 \
-                || printf "${C_RED}[!] Falha ao instalar pacotes (pacman): ${lista}${C_RESET}\n"
+                || log_err "[!] Falha ao instalar pacotes (pacman): ${lista}"
             ;;
     esac
 }
 
 # ==============================================================================
-# 6. FUNÇÕES DE FERRAMENTAS (migradas do ubuntu-autoinstall)
+# 7. FUNÇÕES DE FERRAMENTAS (migradas do ubuntu-autoinstall)
 # ==============================================================================
 
 # ---------- 0. ATUALIZAÇÃO GERAL ----------
 atualizacao_geral() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] ATUALIZANDO O SISTEMA (${PKG_MGR})${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "ATUALIZANDO O SISTEMA (${PKG_MGR})"
 
     case "$PKG_MGR" in
         apt)
@@ -356,32 +391,30 @@ atualizacao_geral() {
             pacman -Syu --noconfirm
             ;;
         *)
-            printf "${C_RED}[!] Gerenciador de pacotes desconhecido.${C_RESET}\n"
+            log_err "[!] Gerenciador de pacotes desconhecido."
             return 1
             ;;
     esac
 
-    printf "${C_GREEN}[✓] Atualização geral concluída!${C_RESET}\n"
+    log_ok "[✓] Atualização geral concluída!"
 }
 
 # ---------- R1. SERVIDOR SSH ----------
 habilitar_servidor_ssh() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] HABILITANDO SERVIDOR SSH NO LINUX${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "HABILITANDO SERVIDOR SSH NO LINUX"
 
     # ---------- Passo 1/4: Instalar OpenSSH Server ----------
-    printf "${C_GRAY}[1/4] Verificando OpenSSH Server...${C_RESET}\n"
-    printf "${C_GRAY}[+] Distribuição detectada: ${DISTRO_ID} (gerenciador: ${PKG_MGR})${C_RESET}\n"
+    log_step "[1/4] Verificando OpenSSH Server..."
+    log_step "[+] Distribuição detectada: ${DISTRO_ID} (gerenciador: ${PKG_MGR})"
 
     if command -v sshd >/dev/null 2>&1 || systemctl list-unit-files 2>/dev/null | grep -qE "^(ssh|sshd)\.service"; then
-        printf "${C_GREEN}[✓] OpenSSH Server já está instalado.${C_RESET}\n"
+        log_ok "[✓] OpenSSH Server já está instalado."
     else
         instalar_pacotes "openssh-server" "openssh-server" "openssh"
     fi
 
     # ---------- Passo 2/4: Habilitar e iniciar o serviço ----------
-    printf "${C_GRAY}[2/4] Habilitando e iniciando o serviço ${SSH_SERVICE}...${C_RESET}\n"
+    log_step "[2/4] Habilitando e iniciando o serviço ${SSH_SERVICE}..."
     systemctl enable "$SSH_SERVICE" >/dev/null 2>&1 || true
     systemctl start "$SSH_SERVICE" >/dev/null 2>&1 || true
 
@@ -393,83 +426,76 @@ habilitar_servidor_ssh() {
     done
 
     if systemctl is-active "$SSH_SERVICE" >/dev/null 2>&1; then
-        printf "${C_GREEN}[✓] Serviço ${SSH_SERVICE} ativo e configurado para iniciar no boot!${C_RESET}\n"
+        log_ok "[✓] Serviço ${SSH_SERVICE} ativo e configurado para iniciar no boot!"
         INSTALLED_CACHE[sshd]=1
     else
-        printf "${C_RED}[!] Serviço ${SSH_SERVICE} não está ativo. Verifique: systemctl status ${SSH_SERVICE}${C_RESET}\n"
+        log_err "[!] Serviço ${SSH_SERVICE} não está ativo. Verifique: systemctl status ${SSH_SERVICE}"
     fi
 
     # ---------- Passo 3/4: Firewall ----------
-    printf "${C_GRAY}[3/4] Configurando firewall para permitir SSH (porta 22 TCP)...${C_RESET}\n"
+    log_step "[3/4] Configurando firewall para permitir SSH (porta 22 TCP)..."
     if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -qi "Status: active"; then
         ufw allow ssh >/dev/null 2>&1
-        printf "${C_GREEN}[✓] UFW: regra para SSH adicionada.${C_RESET}\n"
+        log_ok "[✓] UFW: regra para SSH adicionada."
     elif command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active firewalld >/dev/null 2>&1; then
         firewall-cmd --permanent --add-service=ssh >/dev/null 2>&1
         firewall-cmd --reload >/dev/null 2>&1
-        printf "${C_GREEN}[✓] firewalld: regra para SSH adicionada.${C_RESET}\n"
+        log_ok "[✓] firewalld: regra para SSH adicionada."
     else
-        printf "${C_GRAY}[i] Nenhum firewall ativo detectado (UFW/firewalld) — nada a liberar.${C_RESET}\n"
+        log_step "[i] Nenhum firewall ativo detectado (UFW/firewalld) — nada a liberar."
     fi
 
     # ---------- Passo 4/4: Resumo e credenciais de conexão ----------
-    printf "${C_GRAY}[4/4] Coletando informações de conexão...${C_RESET}\n"
+    log_step "[4/4] Coletando informações de conexão..."
     local ip
     ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
     [ -z "$ip" ] && ip="N/A"
 
-    printf "\n${C_GREEN}========================================================${C_RESET}\n"
-    printf "${C_GREEN} [✓] SERVIDOR SSH CONFIGURADO E PRONTO PARA CONEXÃO!${C_RESET}\n"
-    printf "${C_RESET}     Comando para conectar de outro computador:${C_RESET}\n"
-    printf "${C_YELLOW}     ssh %s@%s${C_RESET}\n" "$REAL_USER" "$ip"
-    printf "${C_GREEN}========================================================${C_RESET}\n"
+    log_header_success "SERVIDOR SSH CONFIGURADO E PRONTO PARA CONEXÃO!"
+    printf '     Comando para conectar de outro computador:\n'
+    printf '%s     ssh %s@%s%s\n' "$C_YELLOW" "$REAL_USER" "$ip" "$C_RESET"
+    printf '%s========================================================%s\n' "$C_GREEN" "$C_RESET"
 }
 
 # ---------- A1. BRAVE BROWSER ----------
 instalar_brave() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO BRAVE BROWSER (script oficial)${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO BRAVE BROWSER (script oficial)"
     if testa_status brave; then
-        printf "${C_GREEN}[✓] Brave Browser já está instalado.${C_RESET}\n"
+        log_ok "[✓] Brave Browser já está instalado."
         return
     fi
 
-    printf "${C_GRAY}[1/2] Baixando e executando instalador oficial...${C_RESET}\n"
+    log_step "[1/2] Baixando e executando instalador oficial..."
     if sh -c 'curl -fsS https://dl.brave.com/install.sh | sh' >/dev/null 2>&1; then
         INSTALLED_CACHE[brave]=1
-        printf "${C_GREEN}[✓] Brave Browser instalado com sucesso!${C_RESET}\n"
+        log_ok "[✓] Brave Browser instalado com sucesso!"
     else
-        printf "${C_YELLOW}[!] Falha na instalação automática. Instale manualmente: https://brave.com/linux/${C_RESET}\n"
+        log_warn "[!] Falha na instalação automática. Instale manualmente: https://brave.com/linux/"
     fi
 }
 
 # ---------- A2. BTOP ----------
 instalar_btop() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO BTOP (monitor do sistema)${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO BTOP (monitor do sistema)"
     if testa_status btop; then
-        printf "${C_GREEN}[✓] btop já está instalado.${C_RESET}\n"
+        log_ok "[✓] btop já está instalado."
         return
     fi
 
     instalar_pacotes "btop" "btop" "btop"
     if command -v btop >/dev/null 2>&1; then
         INSTALLED_CACHE[btop]=1
-        printf "${C_GREEN}[✓] btop instalado com sucesso!${C_RESET}\n"
+        log_ok "[✓] btop instalado com sucesso!"
     else
-        printf "${C_YELLOW}[!] Não foi possível confirmar a instalação do btop.${C_RESET}\n"
+        log_warn "[!] Não foi possível confirmar a instalação do btop."
     fi
 }
 
 # ---------- D1. PACOTE BASE DEV ----------
 instalar_base_dev() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO PACOTE BASE DEV (git, curl, build...)${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO PACOTE BASE DEV (git, curl, build...)"
     if testa_status base; then
-        printf "${C_GREEN}[✓] Pacote base dev já está instalado.${C_RESET}\n"
+        log_ok "[✓] Pacote base dev já está instalado."
         return
     fi
 
@@ -480,19 +506,17 @@ instalar_base_dev() {
 
     if command -v git >/dev/null 2>&1 && command -v make >/dev/null 2>&1; then
         INSTALLED_CACHE[base]=1
-        printf "${C_GREEN}[✓] Pacote base dev instalado com sucesso!${C_RESET}\n"
+        log_ok "[✓] Pacote base dev instalado com sucesso!"
     else
-        printf "${C_YELLOW}[!] Não foi possível confirmar a instalação da base dev.${C_RESET}\n"
+        log_warn "[!] Não foi possível confirmar a instalação da base dev."
     fi
 }
 
 # ---------- D2. DOCKER + DOCKER COMPOSE V2 ----------
 instalar_docker() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO DOCKER + DOCKER COMPOSE V2${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO DOCKER + DOCKER COMPOSE V2"
     if testa_status docker; then
-        printf "${C_GREEN}[✓] Docker já está instalado.${C_RESET}\n"
+        log_ok "[✓] Docker já está instalado."
     else
         instalar_pacotes \
             "docker.io docker-compose-v2" \
@@ -501,51 +525,48 @@ instalar_docker() {
 
         if command -v docker >/dev/null 2>&1; then
             INSTALLED_CACHE[docker]=1
-            printf "${C_GREEN}[✓] Docker instalado com sucesso!${C_RESET}\n"
+            log_ok "[✓] Docker instalado com sucesso!"
         else
-            printf "${C_YELLOW}[!] Não foi possível confirmar a instalação do Docker.${C_RESET}\n"
+            log_warn "[!] Não foi possível confirmar a instalação do Docker."
         fi
     fi
 
     # Habilitar e iniciar o serviço
-    printf "${C_GRAY}[+] Habilitando e iniciando o serviço docker...${C_RESET}\n"
+    log_step "[+] Habilitando e iniciando o serviço docker..."
     systemctl enable docker >/dev/null 2>&1 || true
     systemctl start docker >/dev/null 2>&1 || true
 
     # Grupo docker para o usuário real (idempotente)
-    printf "${C_GRAY}[+] Adicionando '${REAL_USER}' ao grupo docker...${C_RESET}\n"
+    log_step "[+] Adicionando '${REAL_USER}' ao grupo docker..."
+    groupadd -f docker >/dev/null 2>&1 || true
     if [ "$REAL_USER" != "root" ]; then
         usermod -aG docker "$REAL_USER" 2>/dev/null || true
-        printf "${C_YELLOW}[i] Refaça o login (ou execute 'newgrp docker') para usar docker sem sudo.${C_RESET}\n"
+        log_warn "[i] Refaça o login (ou execute 'newgrp docker') para usar docker sem sudo."
     fi
 }
 
 # ---------- D3. DISTROBOX ----------
 instalar_distrobox() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO DISTROBOX (contêineres estilo toolbox)${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO DISTROBOX (contêineres estilo toolbox)"
     if testa_status distrobox; then
-        printf "${C_GREEN}[✓] Distrobox já está instalado.${C_RESET}\n"
+        log_ok "[✓] Distrobox já está instalado."
         return
     fi
 
     instalar_pacotes "distrobox" "distrobox" "distrobox"
     if command -v distrobox >/dev/null 2>&1; then
         INSTALLED_CACHE[distrobox]=1
-        printf "${C_GREEN}[✓] Distrobox instalado com sucesso!${C_RESET}\n"
+        log_ok "[✓] Distrobox instalado com sucesso!"
     else
-        printf "${C_YELLOW}[!] Não foi possível confirmar a instalação do Distrobox.${C_RESET}\n"
+        log_warn "[!] Não foi possível confirmar a instalação do Distrobox."
     fi
 }
 
 # ---------- D4. HOMEBREW (LINUXBREW) ----------
 instalar_homebrew() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO HOMEBREW (Linuxbrew)${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO HOMEBREW (Linuxbrew)"
     if testa_status brew; then
-        printf "${C_GREEN}[✓] Homebrew já está instalado.${C_RESET}\n"
+        log_ok "[✓] Homebrew já está instalado."
         return
     fi
 
@@ -553,134 +574,156 @@ instalar_homebrew() {
     h="$(home_usuario)"
     local grupo
     grupo="$(id -gn "$REAL_USER" 2>/dev/null || echo "$REAL_USER")"
-    printf "${C_GRAY}[1/3] Preparando diretório /home/linuxbrew para o usuário ${REAL_USER}...${C_RESET}\n"
+    log_step "[1/3] Preparando diretório /home/linuxbrew para o usuário ${REAL_USER}..."
     mkdir -p /home/linuxbrew/.linuxbrew
     chown -R "$REAL_USER":"$grupo" /home/linuxbrew 2>/dev/null || true
 
-    printf "${C_GRAY}[2/3] Executando instalador oficial (não-interativo)...${C_RESET}\n"
-    if su - "$REAL_USER" -c 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' >/dev/null 2>&1; then
+    log_step "[2/3] Executando instalador oficial (não-interativo)..."
+    # shellcheck disable=SC2016 # intencional: $() deve expandir no subshell do usuário
+    local cmd_brew='NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    if su - "$REAL_USER" -c "$cmd_brew" >/dev/null 2>&1; then
         # Configura o shell do usuário (idempotente — não duplica linha)
-        printf "${C_GRAY}[3/3] Configurando .bashrc do usuário ${REAL_USER}...${C_RESET}\n"
+        log_step "[3/3] Configurando .bashrc do usuário ${REAL_USER}..."
         local bashrc="${h}/.bashrc"
         # shellcheck disable=SC2016 # intencional: $() deve expandir quando o .bashrc rodar
         if ! grep -qF 'brew shellenv' "$bashrc" 2>/dev/null; then
             printf 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"\n' >> "$bashrc"
         fi
         INSTALLED_CACHE[brew]=1
-        printf "${C_GREEN}[✓] Homebrew instalado e configurado no ${bashrc}!${C_RESET}\n"
+        log_ok "[✓] Homebrew instalado e configurado no ${bashrc}!"
     else
-        printf "${C_YELLOW}[!] Falha na instalação do Homebrew. Verifique a conexão e a base dev.${C_RESET}\n"
+        log_warn "[!] Falha na instalação do Homebrew. Verifique a conexão e a base dev."
     fi
 }
 
 # ---------- D5. VS CODE (FLATPAK UNIVERSAL) ----------
 instalar_vscode() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO VISUAL STUDIO CODE (Flatpak)${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO VISUAL STUDIO CODE (Flatpak)"
     if testa_status vscode; then
-        printf "${C_GREEN}[✓] VS Code já está instalado.${C_RESET}\n"
+        log_ok "[✓] VS Code já está instalado."
         return
     fi
 
     garantindo_flatpak
-    printf "${C_GRAY}[+] Instalando com.visualstudio.code via Flatpak...${C_RESET}\n"
+    log_step "[+] Instalando com.visualstudio.code via Flatpak..."
     if flatpak install -y flathub com.visualstudio.code >/dev/null 2>&1; then
         INSTALLED_CACHE[vscode]=1
-        printf "${C_GREEN}[✓] VS Code instalado com sucesso! (flatpak run com.visualstudio.code)${C_RESET}\n"
+        log_ok "[✓] VS Code instalado com sucesso! (flatpak run com.visualstudio.code)"
     else
-        printf "${C_YELLOW}[!] Falha na instalação do VS Code via Flatpak.${C_RESET}\n"
+        log_warn "[!] Falha na instalação do VS Code via Flatpak."
     fi
 }
 
 # ---------- D6. OBSIDIAN (FLATPAK UNIVERSAL) ----------
 instalar_obsidian() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO OBSIDIAN (Flatpak)${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO OBSIDIAN (Flatpak)"
     if testa_status obsidian; then
-        printf "${C_GREEN}[✓] Obsidian já está instalado.${C_RESET}\n"
+        log_ok "[✓] Obsidian já está instalado."
         return
     fi
 
     garantindo_flatpak
-    printf "${C_GRAY}[+] Instalando md.obsidian.Obsidian via Flatpak...${C_RESET}\n"
+    log_step "[+] Instalando md.obsidian.Obsidian via Flatpak..."
     if flatpak install -y flathub md.obsidian.Obsidian >/dev/null 2>&1; then
         INSTALLED_CACHE[obsidian]=1
-        printf "${C_GREEN}[✓] Obsidian instalado com sucesso! (flatpak run md.obsidian.Obsidian)${C_RESET}\n"
+        log_ok "[✓] Obsidian instalado com sucesso! (flatpak run md.obsidian.Obsidian)"
     else
-        printf "${C_YELLOW}[!] Falha na instalação do Obsidian via Flatpak.${C_RESET}\n"
+        log_warn "[!] Falha na instalação do Obsidian via Flatpak."
     fi
 }
 
 # ---------- D7. OPENCODE CLI ----------
 instalar_opencode() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO OPENCODE CLI${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO OPENCODE CLI"
     if testa_status opencode; then
-        printf "${C_GREEN}[✓] OpenCode CLI já está instalado.${C_RESET}\n"
+        log_ok "[✓] OpenCode CLI já está instalado."
         return
     fi
 
-    printf "${C_GRAY}[+] Executando instalador oficial (opencode.ai)...${C_RESET}\n"
-    if sh -c 'curl -fsSL https://opencode.ai/install | bash' >/dev/null 2>&1; then
-        INSTALLED_CACHE[opencode]=1
-        printf "${C_GREEN}[✓] OpenCode CLI instalado com sucesso!${C_RESET}\n"
+    log_step "[+] Executando instalador oficial (opencode.ai)..."
+    local h
+    h="$(home_usuario)"
+    local sucesso=0
+    if [ "$REAL_USER" != "root" ]; then
+        if su - "$REAL_USER" -c 'curl -fsSL https://opencode.ai/install | bash' >/dev/null 2>&1; then
+            sucesso=1
+            if [ -x "${h}/.opencode/bin/opencode" ]; then
+                ln -sf "${h}/.opencode/bin/opencode" /usr/local/bin/opencode 2>/dev/null || true
+            elif [ -x "${h}/.local/bin/opencode" ]; then
+                ln -sf "${h}/.local/bin/opencode" /usr/local/bin/opencode 2>/dev/null || true
+            fi
+        fi
     else
-        printf "${C_YELLOW}[!] Falha na instalação do OpenCode CLI.${C_RESET}\n"
+        if curl -fsSL https://opencode.ai/install | bash >/dev/null 2>&1; then
+            sucesso=1
+            [ -x "/root/.opencode/bin/opencode" ] && ln -sf "/root/.opencode/bin/opencode" /usr/local/bin/opencode 2>/dev/null || true
+        fi
+    fi
+
+    if (( sucesso )) || testa_status opencode; then
+        INSTALLED_CACHE[opencode]=1
+        log_ok "[✓] OpenCode CLI instalado com sucesso! (opencode)"
+    else
+        log_warn "[!] Falha na instalação do OpenCode CLI."
     fi
 }
 
 # ---------- D8. ANTIGRAVITY CLI ----------
 instalar_antigravity() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO ANTIGRAVITY CLI${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO ANTIGRAVITY CLI"
     if testa_status antigravity; then
-        printf "${C_GREEN}[✓] Antigravity CLI já está instalado.${C_RESET}\n"
+        log_ok "[✓] Antigravity CLI já está instalado."
         return
     fi
 
-    printf "${C_GRAY}[+] Executando instalador oficial (antigravity.google)...${C_RESET}\n"
-    if sh -c 'curl -fsSL https://antigravity.google/cli/install.sh | bash' >/dev/null 2>&1; then
+    log_step "[+] Executando instalador oficial (antigravity.google)..."
+    local h
+    h="$(home_usuario)"
+    if curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --dir /usr/local/bin >/dev/null 2>&1; then
+        [ -x /usr/local/bin/agy ] && ln -sf /usr/local/bin/agy /usr/local/bin/antigravity 2>/dev/null || true
+        if [ "$REAL_USER" != "root" ] && [ -d "${h}" ]; then
+            mkdir -p "${h}/.local/bin"
+            ln -sf /usr/local/bin/agy "${h}/.local/bin/agy" 2>/dev/null || true
+            ln -sf /usr/local/bin/agy "${h}/.local/bin/antigravity" 2>/dev/null || true
+            chown -h "$REAL_USER" "${h}/.local/bin/agy" "${h}/.local/bin/antigravity" 2>/dev/null || true
+        fi
         INSTALLED_CACHE[antigravity]=1
-        printf "${C_GREEN}[✓] Antigravity CLI instalado com sucesso!${C_RESET}\n"
+        log_ok "[✓] Antigravity CLI instalado com sucesso! (agy / antigravity)"
     else
-        printf "${C_YELLOW}[!] Falha na instalação do Antigravity CLI.${C_RESET}\n"
+        log_warn "[!] Falha na instalação do Antigravity CLI."
     fi
 }
 
 # ---------- C1. JETBRAINSMONO NERD FONT ----------
 instalar_nerdfont() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO JETBRAINSMONO NERD FONT (estilo Omarchy)${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO JETBRAINSMONO NERD FONT (estilo Omarchy)"
     if testa_status nerdfont; then
-        printf "${C_GREEN}[✓] JetBrainsMono Nerd Font já está instalada.${C_RESET}\n"
+        log_ok "[✓] JetBrainsMono Nerd Font já está instalada."
         return
     fi
 
-    printf "${C_GRAY}[1/3] Criando diretório de fontes...${C_RESET}\n"
+    instalar_pacotes "fontconfig unzip curl" "fontconfig unzip curl" "fontconfig unzip curl"
+
+    log_step "[1/3] Criando diretório de fontes..."
     mkdir -p /usr/local/share/fonts/NerdFonts
 
-    printf "${C_GRAY}[2/3] Baixando JetBrainsMono.zip (release oficial)...${C_RESET}\n"
+    log_step "[2/3] Baixando JetBrainsMono.zip (release oficial)..."
     if curl -fLo /tmp/JetBrainsMono.zip https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip >/dev/null 2>&1; then
         unzip -o /tmp/JetBrainsMono.zip -d /usr/local/share/fonts/NerdFonts >/dev/null 2>&1
         rm -f /tmp/JetBrainsMono.zip
     else
-        printf "${C_YELLOW}[!] Falha no download da Nerd Font.${C_RESET}\n"
+        log_warn "[!] Falha no download da Nerd Font."
         return
     fi
 
-    printf "${C_GRAY}[3/3] Atualizando cache de fontes...${C_RESET}\n"
+    log_step "[3/3] Atualizando cache de fontes..."
     fc-cache -fv >/dev/null 2>&1
 
     if fc-list 2>/dev/null | grep -qi "JetBrainsMono"; then
         INSTALLED_CACHE[nerdfont]=1
-        printf "${C_GREEN}[✓] JetBrainsMono Nerd Font instalada e ativa!${C_RESET}\n"
+        log_ok "[✓] JetBrainsMono Nerd Font instalada e ativa!"
     else
-        printf "${C_YELLOW}[!] Fonte instalada, mas não detectada no fc-list.${C_RESET}\n"
+        log_warn "[!] Fonte instalada em /usr/local/share/fonts/NerdFonts, mas não listada no fc-list."
     fi
 }
 
@@ -688,40 +731,36 @@ instalar_nerdfont() {
 garantindo_flatpak() {
     # Helper: garante flatpak + flathub antes de instalar apps flatpak
     if ! command -v flatpak >/dev/null 2>&1; then
-        printf "${C_GRAY}[+] Instalando Flatpak...${C_RESET}\n"
+        log_step "[+] Instalando Flatpak..."
         instalar_pacotes "flatpak" "flatpak" "flatpak"
     fi
     if ! flatpak remotes 2>/dev/null | grep -qi "flathub"; then
-        printf "${C_GRAY}[+] Ativando repositório Flathub...${C_RESET}\n"
+        log_step "[+] Ativando repositório Flathub..."
         flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo >/dev/null 2>&1 || true
     fi
     INSTALLED_CACHE[flatpak]=1
 }
 
 instalar_flatpak() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO FLATPAK + REPOSITÓRIO FLATHUB${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO FLATPAK + REPOSITÓRIO FLATHUB"
     if testa_status flatpak; then
-        printf "${C_GREEN}[✓] Flatpak + Flathub já estão configurados.${C_RESET}\n"
+        log_ok "[✓] Flatpak + Flathub já estão configurados."
         return
     fi
 
     garantindo_flatpak
     if flatpak remotes 2>/dev/null | grep -qi "flathub"; then
-        printf "${C_GREEN}[✓] Flatpak + Flathub configurados com sucesso!${C_RESET}\n"
+        log_ok "[✓] Flatpak + Flathub configurados com sucesso!"
     else
-        printf "${C_YELLOW}[!] Não foi possível confirmar o Flathub.${C_RESET}\n"
+        log_warn "[!] Não foi possível confirmar o Flathub."
     fi
 }
 
 # ---------- C3. GNOME TWEAKS + RESTRICTED EXTRAS ----------
 instalar_gnome_tweaks() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] INSTALANDO GNOME TWEAKS (e codecs restritos onde aplicável)${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "INSTALANDO GNOME TWEAKS (e codecs restritos onde aplicável)"
     if testa_status tweaks; then
-        printf "${C_GREEN}[✓] GNOME Tweaks já está instalado.${C_RESET}\n"
+        log_ok "[✓] GNOME Tweaks já está instalado."
         return
     fi
 
@@ -731,28 +770,26 @@ instalar_gnome_tweaks() {
             ;;
         dnf)
             instalar_pacotes "" "gnome-tweaks" ""
-            printf "${C_GRAY}[i] Fedora: codecs proprietários via RPM Fusion (manual).${C_RESET}\n"
+            log_step "[i] Fedora: codecs proprietários via RPM Fusion (manual)."
             ;;
         pacman)
             instalar_pacotes "" "" "gnome-tweaks"
-            printf "${C_GRAY}[i] Arch: codecs proprietários via AUR (ex: ttf-ms-fonts).${C_RESET}\n"
+            log_step "[i] Arch: codecs proprietários via AUR (ex: ttf-ms-fonts)."
             ;;
     esac
 
     if command -v gnome-tweaks >/dev/null 2>&1; then
         INSTALLED_CACHE[tweaks]=1
-        printf "${C_GREEN}[✓] GNOME Tweaks instalado com sucesso!${C_RESET}\n"
+        log_ok "[✓] GNOME Tweaks instalado com sucesso!"
     else
-        printf "${C_YELLOW}[!] Não foi possível confirmar a instalação do GNOME Tweaks.${C_RESET}\n"
+        log_warn "[!] Não foi possível confirmar a instalação do GNOME Tweaks."
     fi
 }
 
 # ---------- P1. PERFIL DEV COMPLETO (MODO BRNCZZR) ----------
 perfil_dev_completo() {
-    printf "\n${C_CYAN}========================================================${C_RESET}\n"
-    printf "${C_CYAN}[*] PERFIL DEV COMPLETO (MODO BRNCZZR)${C_RESET}\n"
-    printf "${C_CYAN}[*] Instalando workstation dev completa — pode demorar...${C_RESET}\n"
-    printf "${C_CYAN}========================================================${C_RESET}\n"
+    log_header "PERFIL DEV COMPLETO (MODO BRNCZZR)"
+    log_info "[*] Instalando workstation dev completa — pode demorar..."
 
     instalar_base_dev
     instalar_flatpak
@@ -769,13 +806,11 @@ perfil_dev_completo() {
     instalar_gnome_tweaks
     atualizacao_geral
 
-    printf "\n${C_GREEN}========================================================${C_RESET}\n"
-    printf "${C_GREEN} [✓] PERFIL DEV COMPLETO CONCLUÍDO!${C_RESET}\n"
-    printf "${C_GREEN}========================================================${C_RESET}\n"
+    log_header_success "PERFIL DEV COMPLETO CONCLUÍDO!"
 }
 
 # ==============================================================================
-# 7. MOTOR DE INTERFACE ESTILO BIOS (SETUP UTILITY)
+# 8. MOTOR DE INTERFACE ESTILO BIOS (SETUP UTILITY)
 # ==============================================================================
 # Fiel ao win-toolbox.ps1: bordas duplas, abas superiores, cursor em bloco verde,
 # painel lateral "Item Help" dinâmico, Espaço marca [✓], Enter executa, Q sai.
@@ -1203,7 +1238,7 @@ ler_tecla() {
 # -----------------------------------------------------------------------------
 read_bios_menu() {
     local aba="$1"
-    SEL=0; PAGE=0; MARKS=()
+    SEL=0; PAGE=0
     MENU_RES=""
     local total=${#IT_CODES[@]}
     PAGINAS=$(( (total + PAGE_SIZE - 1) / PAGE_SIZE ))
@@ -1214,7 +1249,7 @@ read_bios_menu() {
         show_bios_screen "$aba"
         ler_tecla
 
-        local fim_pagina code special lote c
+        local fim_pagina code special lote
 
         case "$TECLA" in
             1)  # ↑
@@ -1298,16 +1333,26 @@ read_bios_menu() {
                     fi
                 fi
                 ;;
-            6)  # Enter → executa marcados (ou o selecionado)
+            6)  # Enter → executa marcados em lote ou o selecionado
                 lote=""
-                for ((c = 0; c < total; c++)); do
-                    code="${IT_CODES[$c]}"
-                    if [[ -n "${MARKS[$code]+x}" ]]; then
-                        [[ -n "$lote" ]] && lote+=","
-                        lote+="$code"
-                    fi
-                done
-                [[ -z "$lote" ]] && lote="${IT_CODES[$SEL]}"
+                if (( ${#MARKS[@]} > 0 )); then
+                    local all_known=("0" "R1" "A1" "A2" "D1" "D2" "D3" "D4" "D5" "D6" "D7" "D8" "C1" "C2" "C3" "P1")
+                    local k
+                    for k in "${all_known[@]}"; do
+                        if [[ -n "${MARKS[$k]+x}" ]]; then
+                            [[ -n "$lote" ]] && lote+=","
+                            lote+="$k"
+                        fi
+                    done
+                    for k in "${!MARKS[@]}"; do
+                        if [[ ! " ${all_known[*]} " =~ [[:space:]]${k}[[:space:]] ]]; then
+                            [[ -n "$lote" ]] && lote+=","
+                            lote+="$k"
+                        fi
+                    done
+                else
+                    lote="${IT_CODES[$SEL]}"
+                fi
                 MENU_RES="$lote"
                 return
                 ;;
@@ -1569,12 +1614,15 @@ dispatch_execution() {
 }
 
 wait_user() {
-    printf "\n${C_GRAY}[Pressione ENTER para continuar...]${C_RESET}\n"
-    read -r _
+    if (( IS_HEADLESS )); then
+        return 0
+    fi
+    printf '\n%s[Pressione ENTER para continuar...]%s\n' "$C_GRAY" "$C_RESET"
+    read -r _ 2>/dev/null || true
 }
 
 # ==============================================================================
-# 10. VALIDAÇÃO DE TERMINAL, LIMPEZA E LOOP PRINCIPAL
+# 11. VALIDAÇÃO DE TERMINAL, LIMPEZA E LOOP PRINCIPAL
 # ==============================================================================
 configurar_terminal() {
     # Tenta redimensionar a janela do terminal para 120x30 via ANSI escape sequence
@@ -1584,10 +1632,12 @@ configurar_terminal() {
     cols="$(tput cols 2>/dev/null || echo 0)"
     lines="$(tput lines 2>/dev/null || echo 0)"
     if (( cols > 0 && lines > 0 )) && (( cols < LARGURA || lines < ALTURA )); then
-        printf "\n${C_YELLOW}[!] Recomendado: janela em pelo menos %sx%s (atual: %sx%s).${C_RESET}\n" \
-            "$LARGURA" "$ALTURA" "$cols" "$lines"
-        printf "${C_CYAN}[*] Dica: maximize a janela do terminal para exibir o layout BIOS perfeito.${C_RESET}\n"
-        printf "${C_GRAY}[*] Iniciando interface em 2 segundos...${C_RESET}\n"
+        printf '\n%s[!] Recomendado: janela em pelo menos %sx%s (atual: %sx%s).%s\n' \
+            "$C_YELLOW" "$LARGURA" "$ALTURA" "$cols" "$lines" "$C_RESET"
+        printf '%s[*] Dica: maximize a janela do terminal para exibir o layout BIOS perfeito.%s\n' \
+            "$C_CYAN" "$C_RESET"
+        printf '%s[*] Iniciando interface em 2 segundos...%s\n' \
+            "$C_GRAY" "$C_RESET"
         sleep 2
     fi
 }
@@ -1597,12 +1647,37 @@ restaurar_terminal() {
     tput cnorm 2>/dev/null || true
 }
 
+exibir_ajuda() {
+    cat <<EOF
+LINUX-TOOLBOX-TUI — Caixa de Ferramentas & Pós-Instalação para Linux
+Interface estilo BIOS (Setup Utility) e automação de pós-instalação.
+
+Uso:
+  sudo ./linux-toolbox.sh [OPÇÕES | CÓDIGOS]
+
+Opções:
+  --preview [ABA]    Visualiza a interface sem instalar nada (dispensa root)
+                     Abas válidas: SISTEMA, REDE, APPS, DEV, CONFIG, PERFIS
+  -h, --help         Exibe esta mensagem de ajuda
+
+Modo Headless (lote):
+  sudo ./linux-toolbox.sh D1,D4,C1    Executa os itens especificados diretamente
+  sudo ./linux-toolbox.sh P1          Executa perfil dev completo sem abrir a TUI
+
+Atalhos na TUI:
+  ↑/↓: Mover seleção          ←/→ ou Tab: Trocar menu
+  Espaço: Marcar p/ lote [✓]  Enter: Executar seleção/marcados
+  1..6 ou S/R/A/D/C/P: Abas   Q ou Esc: Sair
+EOF
+}
+
 preview_tela() {
     # --preview [ABA]: renderiza a aba especificada sem exigir root (padrão: SISTEMA)
     local aba="${1:-SISTEMA}"
     aba="$(echo "$aba" | tr '[:lower:]' '[:upper:]')"
     detectar_distro
     detectar_usuario_real
+    MARKS=()
     case "$aba" in
         REDE)   preparar_menu_rede ;;
         APPS)   preparar_menu_apps ;;
@@ -1628,10 +1703,15 @@ main() {
         --preview)
             preview_tela "${2:-SISTEMA}"
             ;;
+        -h|--help)
+            exibir_ajuda
+            exit 0
+            ;;
         "")
             ;;
         *)
             # Modo headless (lote por argumento, ex: ./linux-toolbox.sh D1,D4,P1)
+            IS_HEADLESS=1
             detectar_distro
             require_root
             detectar_usuario_real
@@ -1652,6 +1732,7 @@ main() {
 
     MENU_ATUAL="SISTEMA"
     TELA_SUJA=1
+    MARKS=()
 
     while [ "$MENU_ATUAL" != "EXIT" ]; do
         case "$MENU_ATUAL" in
@@ -1665,7 +1746,7 @@ main() {
     done
 
     restaurar_terminal
-    printf "\n${C_GREEN}[+] Encerrando linux-toolbox-tui. Até logo!${C_RESET}\n\n"
+    printf '\n%s[+] Encerrando linux-toolbox-tui. Até logo!%s\n\n' "$C_GREEN" "$C_RESET"
 }
 
 main "$@"
