@@ -1,0 +1,16 @@
+# Linux
+*.log
+*.tmp
+*.bak
+
+# VS Code / JetBrains
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Backup de configs
+*~
+*.swp
