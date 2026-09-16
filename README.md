@@ -1,7 +1,7 @@
 # 🐧 linux-toolbox-tui — Caixa de Ferramentas & Pós-Instalação para Linux
 
 > **Suporta:** Debian/Ubuntu (`apt`) · Fedora (`dnf`) · Arch/Omarchy (`pacman`)  
-> Interface interativa de terminal (TUI) no **padrão visual do win-toolbox-tui**: abas organizadas (Sistema / Rede / Apps / Dev / Config / Perfis), bordas Unicode, **status dinâmico em tempo real** (`[✓]` Verde = instalado / `[ ]` Branco = pendente), detecção automática de distribuição e execução em lote — sem digitar comandos.
+> Interface **TUI estilo Setup Utility (BIOS)** no padrão do `win-toolbox-tui`: bordas duplas `╔═╗`, cursor em **bloco verde**, painel lateral **Item Help**, abas com atalhos, paginação (21 itens), **status dinâmico** (`[✓]` Verde = instalado) e execução em lote — o mesmo visual, agora em bash puro.
 
 ---
 
@@ -22,27 +22,48 @@ chmod +x linux-toolbox.sh
 sudo ./linux-toolbox.sh
 ```
 
+**Sem sudo / apenas visualizar:**
+
+```bash
+./linux-toolbox.sh --preview    # renderiza a tela sem instalar nada
+./linux-toolbox.sh D1,D4,P1     # modo headless: executa códigos direto
+```
+
 ---
 
-## 💎 Destaques Visuais & Experiência TUI
+## 💎 Destaques Visuais & Experiência TUI (V3.0)
 
-* 🟢 **Status Dinâmico em Tempo Real:** cada item exibe `[✓]` em Verde se já estiver instalado/ativo no sistema, ou `[ ]` em Branco se pendente — com cache de verificação para renderização instantânea.
-* 📑 **Abas Organizadas estilo BIOS:** SISTEMA · REDE · APPS · DEV · CONFIG · PERFIS, com códigos por seção (R1, A1…, D1…, C1…, P1) — espelhando o `win-toolbox-tui`.
-* 🟡 **Títulos em Negrito e Alto Contraste:** seções formatadas em negrito ANSI para leitura imediata.
-* 📐 **Alinhamento de 90 Colunas:** grid calibrado com bordas Unicode arredondadas (`╭─`, `│`, `╰─`).
-* 🔄 **Detecção Automática de Distro:** identifica `apt`, `dnf` ou `pacman` sozinho e usa o nome correto do serviço (`ssh` no Debian/Ubuntu, `sshd` no Fedora/Arch).
-* 🧩 **Execução em Lote:** selecione várias opções separadas por vírgula (ex: `D1,D4,C1,P1`).
-* 👤 **Usuário Real Respeitado:** Homebrew e grupo `docker` são configurados para o usuário `SUDO_USER`, não para root.
+* 🖥️ **Tela Alternativa:** usa `tput smcup`/`rmcup` — o prompt do shell não suja o terminal ao sair.
+* 🟩 **Cursor em Bloco Verde:** a linha selecionada ganha fundo verde estilo Setup (igual ao `win-toolbox.ps1`).
+* 📋 **Painel Item Help (direita):** descrição, método/pacote, categoria e status de cada item — atualizado conforme você navega.
+* 🟡 **Aba Ativa em Fundo Âmbar:** `[ SISTEMA ] [ REDE ] ...` com a aba atual destacada.
+* 📑 **6 Abas com Atalhos:** `S`istema · `R`ede · `A`pps · `D`ev · `C`onfig · `P`erfis (ou `1..6`).
+* 🟢 **Status Dinâmico em Tempo Real:** `[✓]` Verde = instalado/ativo; `[ ]` = pendente — com cache de verificação para renderização instantânea.
+* 📐 **Grid de 100 Colunas:** bordas duplas Unicode `╔═╗ ║ ╠ ╣` e paginação com 21 linhas/aba.
+* 🔄 **Detecção Automática de Distro:** identifica `apt`, `dnf` ou `pacman` e o serviço correto (`ssh` vs `sshd`).
+* 🧩 **Execução em Lote:** marca com `Espaço` ou digita códigos separados por vírgula (ex: `D1,D4,C1,P1`).
+* ⏭️ **Modo Headless:** `./linux-toolbox.sh S,R1,D1,D4` executa direto, sem remontar a tela (espelha o `-ExecutarLote` do win).
+* 👤 **Usuário Real Respeitado:** Homebrew e grupo `docker` são configurados para `SUDO_USER`, não para root.
+
+### 🕹️ Teclas de Navegação
+
+| Tecla | Ação |
+| :--- | :--- |
+| `↑` / `↓` | Mover seleção (com rolagem por página) |
+| `←` / `→` | Trocar aba |
+| `Espaço` | Marcar/desmarcar item para a fila `[✓]` |
+| `Enter` | Executar item(s) selecionado(s) |
+| `Q` / `Esc` | Sair |
 
 ---
 
 ## 🎯 Estrutura Modular dos Menus (Abas estilo BIOS)
 
 ### 1️⃣ [ SISTEMA ]
-* **`0`**: 🚀 **Atualização Geral** — atualiza todos os pacotes do sistema (`apt upgrade` / `dnf upgrade` / `pacman -Syu`)
+* **`0`**: 🚀 **Atualização Geral** — atualiza todos os pacotes (`apt upgrade` / `dnf upgrade` / `pacman -Syu`)
 
 ### 2️⃣ [ REDE & ACESSO REMOTO ]
-* **`R1`**: 🚀 **Habilitar Servidor SSH** — instala `openssh-server`, habilita o serviço no boot, libera a porta 22 no firewall (UFW/firewalld) e exibe o comando de conexão (`ssh usuario@IP`)
+* **`R1`**: 🚀 **Habilitar Servidor SSH** — instala `openssh-server`, habilita no boot, libera porta 22 no firewall (UFW/firewalld) e exibe o comando de conexão (`ssh usuario@IP`)
 
 ### 3️⃣ [ APPS ]
 * **`A1`**: **Brave Browser** — instalado via script oficial do fornecedor
@@ -50,9 +71,9 @@ sudo ./linux-toolbox.sh
 
 ### 4️⃣ [ DEV ] — Workstation Dev Completa
 * **`D1`**: **Pacote Base Dev** — `git`, `curl`, `wget`, `unzip`, `build-essential`/`@development-tools`/`base-devel`, `procps`, `file`
-* **`D2`**: **Docker + Docker Compose v2** — `docker.io`/`moby-engine`/`docker` + compose v2, serviço habilitado no boot e usuário real adicionado ao grupo `docker`
+* **`D2`**: **Docker + Docker Compose v2** — `docker.io`/`moby-engine`/`docker` + compose v2, serviço no boot e usuário real no grupo `docker`
 * **`D3`**: **Distrobox** — contêineres estilo toolbox
-* **`D4`**: **Homebrew (Linuxbrew)** — instalado de forma não-interativa em `/home/linuxbrew`, configurado no `.bashrc` do usuário real (inspirado no Bluefin Linux)
+* **`D4`**: **Homebrew (Linuxbrew)** — não-interativo em `/home/linuxbrew`, configurado no `.bashrc` do usuário real (inspirado no Bluefin Linux)
 * **`D5`**: **Visual Studio Code** — via **Flatpak** universal (`com.visualstudio.code`)
 * **`D6`**: **Obsidian** — via **Flatpak** universal (`md.obsidian.Obsidian`)
 * **`D7`**: **OpenCode CLI** — instalador oficial (`opencode.ai`)
@@ -70,22 +91,30 @@ sudo ./linux-toolbox.sh
 
 ## 🧩 Execuções em Lote
 
-Selecione várias opções separadas por vírgula em qualquer menu:
+Na TUI, marque com `Espaço` e pressione `Enter`, ou digite os códigos separados por vírgula:
+
 ```text
-╭─ Selecione as opções separadas por vírgula (ex: D1,D4,C1,P1)
-╰─❯ D1,D4,C1,P1
+║ ► [✓] 0    ATUALIZAÇÃO GERAL (apt/dnf/pacman)       ║
+║   [ ] R1   HABILITAR SERVIDOR SSH                   ║
+║   [✓] D1   PACOTE BASE DEV (build-essential)        ║
+```
+
+No modo headless:
+
+```bash
+sudo ./linux-toolbox.sh D1,D4,C1,P1
 ```
 
 ---
 
 ## 🔒 Boas Práticas & Segurança
 
-- Requer privilégios de **root** (executar com `sudo`) — verificado automaticamente pelo script.
-- Suporta os **3 principais gerenciadores de pacotes** (`apt`, `dnf`, `pacman`) com o serviço correto para cada distro (`ssh` vs `sshd`) e healthcheck com timeout no serviço SSH.
+- Requer privilégios de **root** na TUI (verificado automaticamente); `--preview` dispensa sudo.
+- Suporta os **3 principais gerenciadores** (`apt`, `dnf`, `pacman`) com serviço correto (`ssh` vs `sshd`) e healthcheck com timeout no SSH.
 - **Idempotência:** Homebrew não duplica linha no `.bashrc` (`grep -qF` antes de `>>`) e apps já instalados não são reinstalados.
-- **Firewall tratado com UFW e firewalld** (os dois mais comuns); se nenhum estiver ativo, avisa em vez de falhar.
-- **Falhas de instalação são reportadas, nunca silenciosas** — o lote continua e mostra o que não foi confirmado.
-- Nenhuma credencial trafega ou é registrada em log em texto plano.
+- **Firewall tratado com UFW e firewalld**; se nenhum estiver ativo, avisa em vez de falhar.
+- **Falhas de instalação são reportadas, nunca silenciosas** — o lote continua e mostra o que não confirmou.
+- Nenhuma credencial trafega ou é registrada em texto plano.
 - Estrutura modular extensível: novas ferramentas entram como novas opções no dispatcher.
 
 ---
