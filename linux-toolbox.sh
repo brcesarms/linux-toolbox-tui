@@ -79,6 +79,7 @@ declare -g PAGE=0             # página atual
 declare -g PAGINAS=1
 declare -g TELA_SUJA=1        # 1 = precisa limpar a tela antes de renderizar
 declare -g TECLA=0            # última tecla lida pelo motor
+declare -g MENU_RES=""         # resultado da seleção do menu (sem subshell)
 
 # Arrays paralelos dos itens do menu atual (populados por preparar_menu_*)
 declare -g -a IT_CODES=() IT_TEXTS=() IT_DESCS=() IT_PKGS=() IT_CATS=() IT_KEYS=() IT_SPECIAL=()
@@ -1197,11 +1198,12 @@ ler_tecla() {
 
 # -----------------------------------------------------------------------------
 # Motor principal: renderiza a tela, lê teclas, gerencia seleção/marcação/página
-# Retorna: "TAB_<ABA>", "Q" ou um lote separado por vírgula (ex: "D1,D4,P1")
+# Define o resultado em MENU_RES: "TAB_<ABA>", "Q" ou lote (ex: "D1,D4,P1")
 # -----------------------------------------------------------------------------
 read_bios_menu() {
     local aba="$1"
     SEL=0; PAGE=0; MARKS=()
+    MENU_RES=""
     local total=${#IT_CODES[@]}
     PAGINAS=$(( (total + PAGE_SIZE - 1) / PAGE_SIZE ))
     (( PAGINAS < 1 )) && PAGINAS=1
@@ -1238,22 +1240,22 @@ read_bios_menu() {
                 ;;
             3)  # → / Tab
                 case "$aba" in
-                    SISTEMA) printf '%s' "TAB_REDE";  return ;;
-                    REDE)    printf '%s' "TAB_APPS";  return ;;
-                    APPS)    printf '%s' "TAB_DEV";   return ;;
-                    DEV)     printf '%s' "TAB_CONFIG"; return ;;
-                    CONFIG)  printf '%s' "TAB_PERFIS"; return ;;
-                    PERFIS)  printf '%s' "TAB_SISTEMA"; return ;;
+                    SISTEMA) MENU_RES="TAB_REDE";  return ;;
+                    REDE)    MENU_RES="TAB_APPS";  return ;;
+                    APPS)    MENU_RES="TAB_DEV";   return ;;
+                    DEV)     MENU_RES="TAB_CONFIG"; return ;;
+                    CONFIG)  MENU_RES="TAB_PERFIS"; return ;;
+                    PERFIS)  MENU_RES="TAB_SISTEMA"; return ;;
                 esac
                 ;;
             4)  # ←
                 case "$aba" in
-                    SISTEMA) printf '%s' "TAB_PERFIS"; return ;;
-                    REDE)    printf '%s' "TAB_SISTEMA"; return ;;
-                    APPS)    printf '%s' "TAB_REDE";  return ;;
-                    DEV)     printf '%s' "TAB_APPS";  return ;;
-                    CONFIG)  printf '%s' "TAB_DEV";   return ;;
-                    PERFIS)  printf '%s' "TAB_CONFIG"; return ;;
+                    SISTEMA) MENU_RES="TAB_PERFIS"; return ;;
+                    REDE)    MENU_RES="TAB_SISTEMA"; return ;;
+                    APPS)    MENU_RES="TAB_REDE";  return ;;
+                    DEV)     MENU_RES="TAB_APPS";  return ;;
+                    CONFIG)  MENU_RES="TAB_DEV";   return ;;
+                    PERFIS)  MENU_RES="TAB_CONFIG"; return ;;
                 esac
                 ;;
             7)  # PageUp
@@ -1277,12 +1279,12 @@ read_bios_menu() {
                 SEL=$((total - 1))
                 (( SEL < 0 )) && SEL=0
                 ;;
-            21) printf '%s' "TAB_SISTEMA"; return ;; # 1 / S
-            22) printf '%s' "TAB_REDE"; return ;;    # 2 / R
-            23) printf '%s' "TAB_APPS"; return ;;    # 3 / A
-            24) printf '%s' "TAB_DEV"; return ;;     # 4 / D
-            25) printf '%s' "TAB_CONFIG"; return ;;  # 5 / C
-            26) printf '%s' "TAB_PERFIS"; return ;;  # 6 / P
+            21) MENU_RES="TAB_SISTEMA"; return ;; # 1 / S
+            22) MENU_RES="TAB_REDE"; return ;;    # 2 / R
+            23) MENU_RES="TAB_APPS"; return ;;    # 3 / A
+            24) MENU_RES="TAB_DEV"; return ;;     # 4 / D
+            25) MENU_RES="TAB_CONFIG"; return ;;  # 5 / C
+            26) MENU_RES="TAB_PERFIS"; return ;;  # 6 / P
             5)  # Espaço → marca/desmarca
                 code="${IT_CODES[$SEL]}"
                 special=0
@@ -1305,11 +1307,11 @@ read_bios_menu() {
                     fi
                 done
                 [[ -z "$lote" ]] && lote="${IT_CODES[$SEL]}"
-                printf '%s' "$lote"
+                MENU_RES="$lote"
                 return
                 ;;
             9|10)  # Esc / Q → sai
-                printf '%s' "Q"
+                MENU_RES="Q"
                 return
                 ;;
             0) : ;;  # tecla desconhecida — ignora
@@ -1396,9 +1398,8 @@ preparar_menu_perfis() {
 
 invocar_menu_sistema() {
     preparar_menu_sistema
-    local res
-    res="$(read_bios_menu SISTEMA)"
-    case "$res" in
+    read_bios_menu SISTEMA
+    case "$MENU_RES" in
         Q) MENU_ATUAL=EXIT ;;
         TAB_SISTEMA) ;;
         TAB_REDE)    MENU_ATUAL=REDE ;;
@@ -1406,15 +1407,14 @@ invocar_menu_sistema() {
         TAB_DEV)     MENU_ATUAL=DEV ;;
         TAB_CONFIG)  MENU_ATUAL=CONFIG ;;
         TAB_PERFIS)  MENU_ATUAL=PERFIS ;;
-        *) [[ -n "$res" ]] && dispatch_execution "$res" ;;
+        *) [[ -n "$MENU_RES" ]] && dispatch_execution "$MENU_RES" ;;
     esac
 }
 
 invocar_menu_rede() {
     preparar_menu_rede
-    local res
-    res="$(read_bios_menu REDE)"
-    case "$res" in
+    read_bios_menu REDE
+    case "$MENU_RES" in
         Q) MENU_ATUAL=EXIT ;;
         TAB_SISTEMA) MENU_ATUAL=SISTEMA ;;
         TAB_REDE) ;;
@@ -1422,15 +1422,14 @@ invocar_menu_rede() {
         TAB_DEV)     MENU_ATUAL=DEV ;;
         TAB_CONFIG)  MENU_ATUAL=CONFIG ;;
         TAB_PERFIS)  MENU_ATUAL=PERFIS ;;
-        *) [[ -n "$res" ]] && dispatch_execution "$res" ;;
+        *) [[ -n "$MENU_RES" ]] && dispatch_execution "$MENU_RES" ;;
     esac
 }
 
 invocar_menu_apps() {
     preparar_menu_apps
-    local res
-    res="$(read_bios_menu APPS)"
-    case "$res" in
+    read_bios_menu APPS
+    case "$MENU_RES" in
         Q) MENU_ATUAL=EXIT ;;
         TAB_SISTEMA) MENU_ATUAL=SISTEMA ;;
         TAB_REDE)    MENU_ATUAL=REDE ;;
@@ -1438,15 +1437,14 @@ invocar_menu_apps() {
         TAB_DEV)     MENU_ATUAL=DEV ;;
         TAB_CONFIG)  MENU_ATUAL=CONFIG ;;
         TAB_PERFIS)  MENU_ATUAL=PERFIS ;;
-        *) [[ -n "$res" ]] && dispatch_execution "$res" ;;
+        *) [[ -n "$MENU_RES" ]] && dispatch_execution "$MENU_RES" ;;
     esac
 }
 
 invocar_menu_dev() {
     preparar_menu_dev
-    local res
-    res="$(read_bios_menu DEV)"
-    case "$res" in
+    read_bios_menu DEV
+    case "$MENU_RES" in
         Q) MENU_ATUAL=EXIT ;;
         TAB_SISTEMA) MENU_ATUAL=SISTEMA ;;
         TAB_REDE)    MENU_ATUAL=REDE ;;
@@ -1454,15 +1452,14 @@ invocar_menu_dev() {
         TAB_DEV) ;;
         TAB_CONFIG)  MENU_ATUAL=CONFIG ;;
         TAB_PERFIS)  MENU_ATUAL=PERFIS ;;
-        *) [[ -n "$res" ]] && dispatch_execution "$res" ;;
+        *) [[ -n "$MENU_RES" ]] && dispatch_execution "$MENU_RES" ;;
     esac
 }
 
 invocar_menu_config() {
     preparar_menu_config
-    local res
-    res="$(read_bios_menu CONFIG)"
-    case "$res" in
+    read_bios_menu CONFIG
+    case "$MENU_RES" in
         Q) MENU_ATUAL=EXIT ;;
         TAB_SISTEMA) MENU_ATUAL=SISTEMA ;;
         TAB_REDE)    MENU_ATUAL=REDE ;;
@@ -1470,15 +1467,14 @@ invocar_menu_config() {
         TAB_DEV)     MENU_ATUAL=DEV ;;
         TAB_CONFIG) ;;
         TAB_PERFIS)  MENU_ATUAL=PERFIS ;;
-        *) [[ -n "$res" ]] && dispatch_execution "$res" ;;
+        *) [[ -n "$MENU_RES" ]] && dispatch_execution "$MENU_RES" ;;
     esac
 }
 
 invocar_menu_perfis() {
     preparar_menu_perfis
-    local res
-    res="$(read_bios_menu PERFIS)"
-    case "$res" in
+    read_bios_menu PERFIS
+    case "$MENU_RES" in
         Q) MENU_ATUAL=EXIT ;;
         TAB_SISTEMA) MENU_ATUAL=SISTEMA ;;
         TAB_REDE)    MENU_ATUAL=REDE ;;
@@ -1486,7 +1482,7 @@ invocar_menu_perfis() {
         TAB_DEV)     MENU_ATUAL=DEV ;;
         TAB_CONFIG)  MENU_ATUAL=CONFIG ;;
         TAB_PERFIS) ;;
-        *) [[ -n "$res" ]] && dispatch_execution "$res" ;;
+        *) [[ -n "$MENU_RES" ]] && dispatch_execution "$MENU_RES" ;;
     esac
 }
 
@@ -1579,15 +1575,19 @@ wait_user() {
 # ==============================================================================
 # 10. VALIDAÇÃO DE TERMINAL, LIMPEZA E LOOP PRINCIPAL
 # ==============================================================================
-verificar_terminal() {
+configurar_terminal() {
+    # Tenta redimensionar a janela do terminal para 120x30 via ANSI escape sequence
+    printf '\e[8;%d;%dt' "$ALTURA" "$LARGURA" 2>/dev/null || true
+
     local cols lines
     cols="$(tput cols 2>/dev/null || echo 0)"
     lines="$(tput lines 2>/dev/null || echo 0)"
-    if (( cols < LARGURA || lines < ALTURA )); then
-        printf "\n${C_YELLOW}[!] O terminal precisa ter pelo menos %sx%s (atual: %sx%s).${C_RESET}\n" \
+    if (( cols > 0 && lines > 0 )) && (( cols < LARGURA || lines < ALTURA )); then
+        printf "\n${C_YELLOW}[!] Recomendado: janela em pelo menos %sx%s (atual: %sx%s).${C_RESET}\n" \
             "$LARGURA" "$ALTURA" "$cols" "$lines"
-        printf "${C_CYAN}[*] Maximize ou aumente a janela do terminal e tente novamente.${C_RESET}\n\n"
-        exit 1
+        printf "${C_CYAN}[*] Dica: maximize a janela do terminal para exibir o layout BIOS perfeito.${C_RESET}\n"
+        printf "${C_GRAY}[*] Iniciando interface em 2 segundos...${C_RESET}\n"
+        sleep 2
     fi
 }
 
@@ -1618,6 +1618,11 @@ preview_tela() {
 }
 
 main() {
+    # Se stdin não for um terminal interativo (ex: curl ... | bash), reconecta ao terminal físico /dev/tty
+    if [ ! -t 0 ] && [ -e /dev/tty ]; then
+        exec 0</dev/tty
+    fi
+
     case "${1:-}" in
         --preview)
             preview_tela "${2:-SISTEMA}"
@@ -1638,7 +1643,7 @@ main() {
     detectar_distro
     require_root
     detectar_usuario_real
-    verificar_terminal
+    configurar_terminal
 
     tput smcup 2>/dev/null || true   # tela alternativa fullscreen
     tput civis 2>/dev/null || true   # esconde o cursor
