@@ -1056,7 +1056,8 @@ show_bios_screen() {
         fi
         local pad_r=$(( W_HELP - ${#rtext} ))
         (( pad_r < 0 )) && pad_r=0
-        local rformatted="${rtext}$(rep_char ' ' "$pad_r")"
+        local rformatted
+        rformatted="${rtext}$(rep_char ' ' "$pad_r")"
 
         # Linha montada: "║ " (2) + Left (68) + " ║ " (3) + Right (45) + " ║" (2) = 120 colunas
         if (( is_selected && i < total )); then
@@ -1122,7 +1123,7 @@ montar_dicas_footer() {
 #          21..26 = teclas 1..6 ou S/R/A/D/C/P (atalhos diretos para cada aba)
 # -----------------------------------------------------------------------------
 ler_tecla() {
-    local key ch1 ch2 ch3
+    local key ch1 ch2
     TECLA=0
 
     if ! IFS= read -rsn1 key; then
@@ -1142,19 +1143,19 @@ ler_tecla() {
                         H) TECLA=17 ;; # Home
                         F) TECLA=18 ;; # End
                         1|7)
-                            read -rsn1 -t 0.05 ch3 2>/dev/null || true
+                            read -rsn1 -t 0.05 _ 2>/dev/null || true
                             TECLA=17 # Home
                             ;;
                         4|8)
-                            read -rsn1 -t 0.05 ch3 2>/dev/null || true
+                            read -rsn1 -t 0.05 _ 2>/dev/null || true
                             TECLA=18 # End
                             ;;
                         5)
-                            read -rsn1 -t 0.05 ch3 2>/dev/null || true
+                            read -rsn1 -t 0.05 _ 2>/dev/null || true
                             TECLA=7 # PageUp
                             ;;
                         6)
-                            read -rsn1 -t 0.05 ch3 2>/dev/null || true
+                            read -rsn1 -t 0.05 _ 2>/dev/null || true
                             TECLA=8 # PageDown
                             ;;
                         *) TECLA=9 ;; # Esc
@@ -1548,7 +1549,7 @@ dispatch_execution() {
     fi
     local pad_m=$(( inner - ${#msg} ))
     (( pad_m < 0 )) && pad_m=0
-    printf '%s%s%s\n' "${C_CYAN}│ ${C_YELLOW}${msg}$(rep_char ' ' "$pad_m")" "${C_CYAN} │${C_RESET}"
+    printf '%s%s\n' "${C_CYAN}│ ${C_YELLOW}${msg}$(rep_char ' ' "$pad_m")" "${C_CYAN} │${C_RESET}"
     printf '%s\n\n' "${C_CYAN}╰$(rep_char '─' $((LARGURA - 2)))╯${C_RESET}"
 
     execute_batch_options "$escolha"
@@ -1557,7 +1558,7 @@ dispatch_execution() {
     local concl=" [✓] Todas as tarefas solicitadas foram concluídas!"
     local pad_c=$(( inner - ${#concl} ))
     (( pad_c < 0 )) && pad_c=0
-    printf '%s%s%s\n' "${C_GREEN}│ ${concl}$(rep_char ' ' "$pad_c")" " │${C_RESET}"
+    printf '%s%s\n' "${C_GREEN}│ ${concl}$(rep_char ' ' "$pad_c")" " │${C_RESET}"
     printf '%s\n' "${C_GREEN}╰$(rep_char '─' $((LARGURA - 2)))╯${C_RESET}"
 
     wait_user
