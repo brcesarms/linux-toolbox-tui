@@ -242,6 +242,9 @@ testa_status() {
         sshd)
             systemctl is-active "$SSH_SERVICE" >/dev/null 2>&1 && result=0
             ;;
+        avahi)
+            systemctl is-active avahi-daemon >/dev/null 2>&1 && result=0
+            ;;
         brave)
             command -v brave-browser >/dev/null 2>&1 && result=0
             command -v flatpak >/dev/null 2>&1 && flatpak info com.brave.Browser >/dev/null 2>&1 && result=0
@@ -454,6 +457,55 @@ habilitar_servidor_ssh() {
     log_header_success "SERVIDOR SSH CONFIGURADO E PRONTO PARA CONEXÃO!"
     printf '     Comando para conectar de outro computador:\n'
     printf '%s     ssh %s@%s%s\n' "$C_YELLOW" "$REAL_USER" "$ip" "$C_RESET"
+    printf '%s========================================================%s\n' "$C_GREEN" "$C_RESET"
+}
+
+# ---------- R2. mDNS / AVAHI — ACESSO POR NOME (.local) ----------
+habilitar_mdns_avahi() {
+    log_header "HABILITANDO mDNS/AVAHI (ACESSO POR NOME .local)"
+
+    # ---------- Passo 1/3: Instalar Avahi ----------
+    log_step "[1/3] Verificando Avahi (mDNS)..."
+    log_step "[+] Distribuição detectada: ${DISTRO_ID} (gerenciador: ${PKG_MGR})"
+
+    if command -v avahi-daemon >/dev/null 2>&1 || systemctl list-unit-files 2>/dev/null | grep -q "avahi-daemon.service"; then
+        log_ok "[✓] Avahi já está instalado."
+    else
+        instalar_pacotes "avahi-daemon avahi-utils" "avahi-daemon avahi-tools" "avahi avahi-tools"
+    fi
+
+    # ---------- Passo 2/3: Habilitar e iniciar o serviço ----------
+    log_step "[2/3] Habilitando e iniciando o serviço avahi-daemon..."
+    systemctl enable avahi-daemon >/dev/null 2>&1 || true
+    systemctl start avahi-daemon >/dev/null 2>&1 || true
+
+    # Healthcheck com timeout (máx. 10 tentativas)
+    local j=0
+    while ! systemctl is-active avahi-daemon >/dev/null 2>&1 && [ $j -lt 10 ]; do
+        sleep 1
+        j=$((j + 1))
+    done
+
+    if systemctl is-active avahi-daemon >/dev/null 2>&1; then
+        log_ok "[✓] Serviço avahi-daemon ativo e configurado para iniciar no boot!"
+        INSTALLED_CACHE[avahi]=1
+    else
+        log_err "[!] Serviço avahi-daemon não está ativo. Verifique: systemctl status avahi-daemon"
+    fi
+
+    # ---------- Passo 3/3: Resumo e credenciais de conexão por nome ----------
+    log_step "[3/3] Coletando hostname para acesso via .local..."
+    local host ip
+    host="$(hostname -s 2>/dev/null)"
+    [ -z "$host" ] && host="$(hostname)"
+    ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    [ -z "$ip" ] && ip="N/A"
+
+    log_header_success "mDNS/AVAHI CONFIGURADO — ACESSO POR NOME (NÃO DEPENDE DO IP)!"
+    printf '     Nome desta máquina na rede: %s\n' "${host}.local"
+    printf '     Teste de resolução (nesta máquina): %s\n' "avahi-resolve -n ${host}.local"
+    printf '     Conectar de outro computador: %s\n' "ssh ${REAL_USER}@${host}.local"
+    printf '     IP atual (fallback se mDNS indisponível): %s\n' "$ip"
     printf '%s========================================================%s\n' "$C_GREEN" "$C_RESET"
 }
 
@@ -1336,7 +1388,7 @@ read_bios_menu() {
             6)  # Enter → executa marcados em lote ou o selecionado
                 lote=""
                 if (( ${#MARKS[@]} > 0 )); then
-                    local all_known=("0" "R1" "A1" "A2" "D1" "D2" "D3" "D4" "D5" "D6" "D7" "D8" "C1" "C2" "C3" "P1")
+                    local all_known=("0" "R1" "R2" "A1" "A2" "D1" "D2" "D3" "D4" "D5" "D6" "D7" "D8" "C1" "C2" "C3" "P1")
                     local k
                     for k in "${all_known[@]}"; do
                         if [[ -n "${MARKS[$k]+x}" ]]; then
@@ -1380,6 +1432,9 @@ preparar_menu_rede() {
     adicionar_item "R1" "Habilitar Servidor SSH (Porta 22)" \
         "Instala openssh-server, habilita o serviço no boot, libera a porta 22 no firewall (UFW/firewalld) e exibe o comando de conexão." \
         "apt/dnf/pacman: openssh-server" "Acesso Remoto / SSH" "sshd"
+    adicionar_item "R2" "Habilitar mDNS/Avahi (Acesso por Nome .local)" \
+        "Instala avahi-daemon (mDNS), habilita no boot e permite conectar por NOME.local em vez do IP — ideal quando o DHCP troca o IP com frequência." \
+        "apt: avahi-daemon | dnf: avahi-daemon | pacman: avahi" "Acesso Remoto / mDNS" "avahi"
 }
 
 preparar_menu_apps() {
@@ -1543,6 +1598,7 @@ execute_single_option() {
     case "$op" in
         "0")  atualizacao_geral ;;
         "R1") habilitar_servidor_ssh ;;
+        "R2") habilitar_mdns_avahi ;;
         "A1") instalar_brave ;;
         "A2") instalar_btop ;;
         "D1") instalar_base_dev ;;

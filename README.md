@@ -65,6 +65,7 @@ sudo ./linux-toolbox.sh
 
 ### 2️⃣ [ REDE & ACESSO REMOTO ]
 * **`R1`**: 🚀 **Habilitar Servidor SSH** — instala `openssh-server`, habilita no boot, libera porta 22 no firewall (UFW/firewalld) e exibe o comando de conexão (`ssh usuario@IP`)
+* **`R2`**: 🌐 **Habilitar mDNS/Avahi (Acesso por Nome `.local`)** — instala `avahi-daemon`, habilita no boot e permite conectar via `ssh usuario@NOME.local` sem depender do IP — ideal quando o DHCP troca o IP com frequência
 
 ### 3️⃣ [ APPS ]
 * **`A1`**: **Brave Browser** — instalado via script oficial do fornecedor
