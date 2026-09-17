@@ -1648,6 +1648,8 @@ dispatch_execution() {
         return
     fi
 
+    # Sair da tela alternativa para que o output da execução fique visível
+    tput rmcup 2>/dev/null || true
     clear 2>/dev/null || printf '\e[2J\e[H'
     tput cnorm 2>/dev/null || true
 
@@ -1675,6 +1677,8 @@ dispatch_execution() {
     INSTALLED_CACHE=()
     MARKS=()
     TELA_SUJA=1
+    # Voltar para a tela alternativa do TUI
+    tput smcup 2>/dev/null || true
     tput civis 2>/dev/null || true
 }
 
