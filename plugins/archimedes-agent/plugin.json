@@ -1,0 +1,5 @@
+{
+  "name": "archimedes-agent",
+  "version": "1.0.0",
+  "description": "Força do Archimedes V2: skills, subagentes (estudante/resumidor/executor), regras e RAG semântico para agy (Antigravity CLI) e Hermes Agent. Portado do opencode (.agents/skills) do cofre archimedes-v2."
+}
