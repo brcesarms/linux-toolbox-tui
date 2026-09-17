@@ -138,6 +138,7 @@ sudo ./linux-toolbox.sh D1,D4,C1,P1
 * 🏛️ **[Força do Archimedes no `agy` + Hermes Agent](./runbooks/agy-hermes-forca-opencode.md)** — leva as 4 skills, 3 subagentes, persona e o RAG semântico (MCP via streamable-http em `10.0.0.10:8765`) para o `agy` e o Hermes no Alienware, a partir do bundle portátil `plugins/archimedes-agent`.
 * 🚚 **[Migração GEEKOM → Alienware (Archimedes V2 completo)](./runbooks/migracao-geekom-alienware.md)** — move cofre, RAG (+índice LanceDB), projetos, vault, notas e backups do workstation para o Alienware via `rsync`/git, e reaponta hermes/agy/opencode para o RAG local (`127.0.0.1:8765`).
 * 🖥️ **[Atualização Proxmox & Repositório Comunidade](./runbooks/proxmox-update-no-subscription.md)** — ativa o repositório `pve-no-subscription`, remove aviso de licença pago e atualiza o Proxmox VE via SSH.
+* 🖥️ **[Instalação e Configuração do PNETLab no Proxmox VE](./runbooks/pnetlab-proxmox-setup.md)** — importação de OVA, VM com aceleração KVM, upgrade v4->v5 e nós de rede (MikroTik CHR).
 
 ---
 
