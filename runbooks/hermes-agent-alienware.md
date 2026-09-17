@@ -209,6 +209,40 @@ O wrapper usa **base64** para transportar o prompt entre bash → SSH → Hermes
 
 ---
 
+## 🔁 Fallback cloud (opcional)
+
+O Hermes suporta uma cadeia de fallback acionada **automaticamente** quando o modelo primário falha (rate-limit HTTP 429, erros 5xx, falha de conexão) — útil se o Ollama estiver fora do ar. Configura-se em `~/.hermes/config.yaml`:
+
+```yaml
+fallback_providers:
+  - provider: opencode-free
+    model: mimo-v2.5-free
+```
+
+### ⚠️ Descoberta: `opencode-free` NÃO funciona fora do CLI do OpenCode
+
+Apesar de ser listado como *keyless* (sem credencial) na documentação, o free tier do Zen **rejeita qualquer cliente externo**:
+
+```json
+{"type":"error","error":{"type":"FreeTierError","message":"OpenCode's free tier can only be used from within OpenCode"}}
+```
+
+Testado com vários `User-Agent` (incluindo `opencode/1.0.0`) — sempre **HTTP 403**. Não serve para o Hermes.
+
+### ✅ Alternativas que funcionam
+
+| Provedor | Requisito | Custo |
+| :--- | :--- | :--- |
+| **Nous Portal** (`nous`) | conta no portal.nousresearch.com (plano Free) + OAuth | grátis (`:free`) |
+| **Google Gemini** (`gemini`) | `GOOGLE_API_KEY` (AI Studio) | free tier generoso |
+| **OpenRouter** (`openrouter`) | `OPENROUTER_API_KEY` | modelos `:free` |
+
+Para configurar depois: `hermes fallback add` (picker interativo) ou editar o `config.yaml` e validar com `hermes fallback ls`.
+
+> 🎯 Decisão do Bruno (17/09/2026): **operar sem fallback por enquanto** — o estagiário local roda 100% no Ollama/GPU. Basta remover a seção `fallback_providers` do config.
+
+---
+
 ## ✅ Status Validado (17/09/2026)
 
 | Item | Valor |
