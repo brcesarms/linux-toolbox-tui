@@ -132,6 +132,7 @@ sudo ./linux-toolbox.sh D1,D4,C1,P1
 ## 📖 Runbooks (passos para copiar e colar)
 
 * 🔑 **[Bootstrap SSH — Ubuntu recém-instalado](./runbooks/ssh-bootstrap-ubuntu.md)** — autoriza a chave pública do seu workstation e ativa o servidor SSH em máquinas formatadas, para acesso por nome (`ssh alienware`) em vez de IP.
+* 🏛️ **[Archimedes no Alienware — Deploy Docker](./runbooks/archimedes-alienware-docker.md)** — instala o agente Archimedes V2 no Alienware inteiramente em containers (zero poluição do sistema), com GPU NVIDIA e serviço chamado `archimedes`.
 
 ---
 
