@@ -129,6 +129,12 @@ sudo ./linux-toolbox.sh D1,D4,C1,P1
 
 ---
 
+## 📖 Runbooks (passos para copiar e colar)
+
+* 🔑 **[Bootstrap SSH — Ubuntu recém-instalado](./runbooks/ssh-bootstrap-ubuntu.md)** — autoriza a chave pública do seu workstation e ativa o servidor SSH em máquinas formatadas, para acesso por nome (`ssh alienware`) em vez de IP.
+
+---
+
 ## 🗺️ Roadmap (próximas ferramentas)
 
 * ⚡ **zRAM** — swap compactada em RAM (migração do ubuntu-autoinstall)
