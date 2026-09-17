@@ -175,6 +175,40 @@ ssh alienware 'export PATH="$HOME/.local/bin:$PATH"; hermes -z "TAREFA AQUI" -t 
 
 ---
 
+## 🧑‍💻 Wrapper de delegação (`estagiario-alienware`)
+
+Para não repetir as flags e as regras anti-alucinação a cada chamada, existe o wrapper `estagiario-alienware` (no repo `archimedes-v2`, pasta `scripts/`). Ele já aplica **toolset restrito + prompt anti-alucinação + --yolo**.
+
+```bash
+# Instalação (uma vez, no workstation)
+ln -sfn "$HOME/archimedes-v2/scripts/estagiario-alienware.sh" "$HOME/.local/bin/estagiario-alienware"
+
+# Uso
+estagiario-alienware "rode docker ps e liste os containers"
+estagiario-alienware -t file "crie /tmp/nota.txt com o conteudo: oi"
+echo "quanta RAM livre? use free -h" | estagiario-alienware -
+```
+
+| Flag / variável | Padrão | Função |
+| :--- | :--- | :--- |
+| `-t, --toolset` | `terminal` | `terminal` (comandos) ou `file` (arquivos) |
+| `-m, --model` | `qwen3-nothink` | modelo Ollama |
+| `-` (argumento) | — | lê a tarefa do **stdin** |
+| `ESTAGIARIO_HOST` | `alienware` | host SSH |
+| `ESTAGIARIO_TIMEOUT` | `300` | timeout em segundos |
+
+O wrapper usa **base64** para transportar o prompt entre bash → SSH → Hermes, eliminando problemas de escaping com aspas e caracteres especiais.
+
+**Resultado dos testes (17/09/2026):**
+
+| Teste | Tempo | Resultado |
+| :--- | :--- | :--- |
+| `-t terminal` (docker ps) | 10,2s | ✅ correto |
+| `-t file` (criar arquivo) | 8,1s | ✅ arquivo real criado |
+| stdin/pipe (`free -h`) | 7,5s | ✅ correto |
+
+---
+
 ## ✅ Status Validado (17/09/2026)
 
 | Item | Valor |
