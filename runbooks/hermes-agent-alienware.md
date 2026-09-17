@@ -1,6 +1,6 @@
 # 🤖 Hermes Agent no Alienware — Estagiário Local (R$ 0)
 
-> **Objetivo:** instalar o **Hermes Agent** (Nous Research) no **Alienware Ubuntu 24.04** usando **modelo 100% local** (`hermes3-64k` via Ollama na GPU RTX 5060). Custo de tokens: **R$ 0**. O Hermes é o **estagiário operacional local** — executa comandos, lê/escreve arquivos e roda diagnósticos por conta própria.
+> **Objetivo:** instalar o **Hermes Agent** (Nous Research) no **Alienware Ubuntu 24.04** usando **modelo 100% local** (`qwen3-nothink` via Ollama na GPU RTX 5060). Custo de tokens: **R$ 0**. O Hermes é o **estagiário operacional local** — executa comandos, lê/escreve arquivos e roda diagnósticos por conta própria.
 
 ---
 
@@ -9,7 +9,7 @@
 | Camada | Componente | Modelo | Custo |
 | :--- | :--- | :--- | :--- |
 | 🏛️ **Archimedes** (cloud) | container `archimedes` (opencode serve) | `big-pickle` (cloud) | tokens |
-| 🤖 **Hermes** (local) | CLI `hermes` no host | `hermes3-64k` (Ollama/GPU) | **R$ 0** |
+| 🤖 **Hermes** (local) | CLI `hermes` no host | `qwen3-nothink` (Ollama/GPU) | **R$ 0** |
 
 > ⚠️ O Hermes **roda no host** (não em container) porque é o agente operacional — precisa de acesso a `docker`, `systemctl`, arquivos etc. Ele mora em `~/.hermes/` (sem poluir o sistema).
 
@@ -22,23 +22,57 @@
 
 ---
 
-## 📥 Passo 1 — Baixar o modelo Hermes 3 (64K de contexto)
+## 🧠 Passo 1 — Preparar o modelo local (com benchmark comparativo)
 
 O Hermes exige **≥64K de contexto** para trabalho agêntico com tools (o padrão do Ollama é curto demais).
 
 ```bash
-# Baixa o modelo oficial (4.7 GB)
-docker exec archimedes-ollama ollama pull hermes3:8b
-
-# Cria variante com 64K de contexto (requisito do Hermes Agent)
-docker exec -i archimedes-ollama sh -c 'cat > /tmp/Modelfile << "EOF"
-FROM hermes3:8b
-PARAMETER num_ctx 64000
-EOF
-ollama create hermes3-64k -f /tmp/Modelfile'
+# 1. Baixar o Qwen3 8B (5.2 GB)
+docker exec archimedes-ollama ollama pull qwen3:8b
 ```
 
-**Por que `hermes3:8b`?** É a escolha ideal: mesma casa do Hermes Agent (Nous Research), tool calling nativo e 128K de contexto nativo.
+### 1.1 — Criar a variante `qwen3-nothink` (RECOMENDADA)
+
+O Qwen3 é um modelo **"thinking"**: gera cadeia de raciocínio antes de agir, o que o deixa **~5x mais lento** (1m+ por tarefa). Injetando `/no_think` no template, ele fica rápido **sem perder confiabilidade**:
+
+```bash
+# Gera Modelfile com template que sempre injeta /no_think
+python3 - << "PYEOF"
+import json, urllib.request
+req = urllib.request.Request("http://127.0.0.1:11434/api/show",
+    data=json.dumps({"model":"qwen3:8b"}).encode(),
+    headers={"Content-Type":"application/json"})
+t = json.load(urllib.request.urlopen(req))["template"]
+old = """{{- if and $.IsThinkSet (eq $i $lastUserIdx) }}
+   {{- if $.Think -}}
+      {{- " "}}/think
+   {{- else -}}
+      {{- " "}}/no_think
+   {{- end -}}
+{{- end }}"""
+t2 = t.replace(old, "{{- \" \"}}/no_think")
+mf = "FROM qwen3:8b\nPARAMETER num_ctx 64000\nTEMPLATE \"\"\"" + t2 + "\"\"\"\n"
+open("/tmp/Modelfile-nothink","w").write(mf)
+print("OK: Modelfile gerado")
+PYEOF
+
+# Cria o modelo no Ollama
+sudo docker cp /tmp/Modelfile-nothink archimedes-ollama:/tmp/Modelfile-nothink
+sudo docker exec archimedes-ollama ollama create qwen3-nothink -f /tmp/Modelfile-nothink
+```
+
+### 1.2 — Benchmark real (por que `qwen3-nothink` venceu)
+
+Testes idênticos executados no Hermes Agent (RTX 5060, 8 GB VRAM):
+
+| Teste | `hermes3-64k` | `qwen3-64k` (thinking) | ⭐ `qwen3-nothink` |
+| :--- | :--- | :--- | :--- |
+| `write_file` (criar arquivo) | ✅ ~30s | ✅ 31s | ✅ **8,8s** |
+| 1 comando exato (`df -h /`) | ✅ 8,9s | ✅ 1m16s | ✅ **1,4s** |
+| Multi-passo (disco + RAM container) | ❌ **alucinou** (20s) | ✅ 1m5s | ✅ **13,6s** |
+| Complexo 3 passos (containers+Ollama+GPU) | ⚠️ vago (11,5s) | ✅ 1m4s | ✅ **23,7s** |
+
+**Conclusão:** o Qwen3 com thinking é o mais confiável, mas lentíssimo. Com `/no_think` ele mantém a **confiabilidade** e ganha **velocidade** — virando o melhor modelo que cabe na GPU.
 
 ---
 
@@ -76,7 +110,7 @@ O Hermes troca as tools por bridges (`tool_search`/`tool_describe`/`tool_call`) 
 ```bash
 cat > ~/.hermes/config.yaml << "EOF"
 model:
-  default: "hermes3-64k"
+  default: "qwen3-nothink"
   provider: "custom"
   base_url: "http://127.0.0.1:11434/v1"
 tools:
@@ -88,7 +122,7 @@ EOF
 
 | Chave | Efeito |
 | :--- | :--- |
-| `model.default` | modelo local (variante 64K) |
+| `model.default` | modelo local (`qwen3-nothink`) |
 | `model.provider` | `custom` = endpoint OpenAI-compatible |
 | `model.base_url` | API do Ollama local |
 | `tools.tool_search.enabled: "off"` | pass-through, **sem** bridges |
@@ -100,7 +134,7 @@ EOF
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-hermes status          # deve mostrar: Model: hermes3-64k · Provider: Custom endpoint
+hermes status          # deve mostrar: Model: qwen3-nothink · Provider: Custom endpoint
 ```
 
 **Teste 1 — escrever arquivo (tool calling real):**
@@ -121,14 +155,23 @@ hermes -z "Rode docker ps --format \"{{.Names}} -> {{.Status}}\" e liste os cont
 ## 🚀 Como o Archimedes delega ao Hermes (headless via SSH)
 
 ```bash
-ssh alienware 'export PATH="$HOME/.local/bin:$PATH"; hermes -z "TAREFA AQUI" --yolo'
+ssh alienware 'export PATH="$HOME/.local/bin:$PATH"; hermes -z "TAREFA AQUI" -t terminal --yolo'
 ```
 
 | Flag | Função |
 | :--- | :--- |
 | `-z "prompt"` | executa um prompt único (não-interativo) |
 | `--yolo` | auto-aprova ações (sem confirmação) |
-| `-t file,terminal` | opcional: restringe toolsets (mais rápido/confiável no 8B) |
+| `-t file` | restringe ao toolset de arquivos (read/write/patch/search) |
+| `-t terminal` | restringe ao toolset de terminal (comandos/processos) |
+| `-m <modelo>` | troca o modelo só naquela chamada |
+
+### 🎯 Regras de uso (evidência do benchmark)
+
+1. **SEMPRE restringir o toolset** (`-t file` ou `-t terminal`) — com dezenas de tools o 8B se perde e alucina.
+2. **1 tarefa atômica por invocação, com comando explícito** → confiável (~9–14s).
+3. **Multi-step/ambíguo → delegar ao Archimedes cloud** — o 8B alucina comandos e dados.
+4. Sempre `--yolo` para execução headless.
 
 ---
 
@@ -137,9 +180,10 @@ ssh alienware 'export PATH="$HOME/.local/bin:$PATH"; hermes -z "TAREFA AQUI" --y
 | Item | Valor |
 | :--- | :--- |
 | Hermes Agent | ✅ v0.21.3 (2026.9.14) |
-| Modelo | ✅ `hermes3-64k` (Ollama, RTX 5060) |
-| Tool calling | ✅ validado (`write_file` + `docker ps` reais) |
-| Tempo de tarefa | ✅ ~18s (tarefa com tool call) |
+| Modelo padrão | ✅ `qwen3-nothink` (Ollama, RTX 5060) |
+| Tool calling | ✅ validado (`write_file`, `docker ps`, `df`, `nvidia-smi` reais) |
+| Tempo (tarefa 1 passo) | ✅ ~1,4–9s |
+| Tempo (3 passos) | ✅ ~24s |
 | Chaves cloud | ✅ zero (100% local) |
 | VRAM em uso | ~6.6 GB / 8.1 GB |
 
@@ -151,8 +195,10 @@ ssh alienware 'export PATH="$HOME/.local/bin:$PATH"; hermes -z "TAREFA AQUI" --y
 | :--- | :--- | :--- |
 | `No module named 'dotenv'` | venv com nome errado | `ln -sfn .venv venv` + `uv sync --frozen` |
 | Hermes "descreve" ação mas não executa | tool_search bridge confundindo o 8B | `tools.tool_search.enabled: "off"` + `defer: []` |
-| Resposta vazia / timeout | contexto curto do Ollama | usar `hermes3-64k` (num_ctx 64000) |
+| Tarefas demorando 1min+ | thinking do Qwen3 | usar variante `qwen3-nothink` (template com `/no_think`) |
+| Alucina comando/dado em tarefa multi-passo | modelo 8B + ambiguidade | restringir `-t` e/ou delegar ao Archimedes cloud |
 | `hermes tools` não abre | exige terminal interativo | use `-t <toolset>` direto no comando |
+| Erro `unknown parameter 'think'` no Modelfile | Ollama não aceita `PARAMETER think` | injetar `/no_think` via **TEMPLATE** (Passo 1.1) |
 
 ---
 
