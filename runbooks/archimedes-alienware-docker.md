@@ -59,7 +59,9 @@ Depois de rodar o Passo 1, avise o Archimedes no chat. Ele fará **automaticamen
 | Agente | Modelo | Onde roda |
 | :--- | :--- | :--- |
 | 🏛️ **Archimedes** (container) | Cloud (`big-pickle`) | API cloud (raciocínio profundo) |
-| 🤖 **Hermes** (estagiário) | Local (`qwen3:8b` via Ollama) | GPU RTX 5060 — R$ 0 |
+| 🤖 **Hermes** (estagiário) | Local (`hermes3-64k` via Ollama) | GPU RTX 5060 — R$ 0 |
+
+> 💡 O **Hermes Agent** já está instalado e validado no Alienware — ver [runbook do Hermes](./hermes-agent-alienware.md).
 
 ### 🩺 Comandos de verificação (dentro do Alienware)
 

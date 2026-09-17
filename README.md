@@ -133,6 +133,7 @@ sudo ./linux-toolbox.sh D1,D4,C1,P1
 
 * 🔑 **[Bootstrap SSH — Ubuntu recém-instalado](./runbooks/ssh-bootstrap-ubuntu.md)** — autoriza a chave pública do seu workstation e ativa o servidor SSH em máquinas formatadas, para acesso por nome (`ssh alienware`) em vez de IP.
 * 🏛️ **[Archimedes no Alienware — Deploy Docker](./runbooks/archimedes-alienware-docker.md)** — instala o agente Archimedes V2 no Alienware inteiramente em containers (zero poluição do sistema), com GPU NVIDIA e serviço chamado `archimedes`.
+* 🤖 **[Hermes Agent no Alienware — Estagiário Local](./runbooks/hermes-agent-alienware.md)** — instala o Hermes Agent (Nous Research) com modelo local `hermes3-64k` (Ollama/GPU RTX 5060), tool calling validado e custo R$ 0. Inclui os 2 fixes obrigatórios (venv + tool_search).
 
 ---
 
