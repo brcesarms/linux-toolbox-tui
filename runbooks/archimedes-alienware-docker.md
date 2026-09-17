@@ -4,6 +4,19 @@
 
 ---
 
+## 📋 Passo 0 — Ativar Homebrew + btop no terminal novo
+
+Se você acabou de instalar o Homebrew e `btop` diz "comando não encontrado", feche o terminal e abra **outro novo** — ou rode no terminal atual:
+
+```bash
+eval "$(~/.linuxbrew/bin/brew shellenv)"
+btop
+```
+
+> 💡 O `btop` fica em `~/.linuxbrew/bin/btop`. Abrir um terminal novo carrega o `.bashrc` (onde o Homebrew já foi adicionado) e o comando passa a funcionar sempre.
+
+---
+
 ## 📋 Passo 1 — Liberar sudo sem senha (1 comando, só uma vez)
 
 Cole no terminal do Alienware:
