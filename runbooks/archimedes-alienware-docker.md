@@ -46,6 +46,38 @@ Depois de rodar o Passo 1, avise o Archimedes no chat. Ele fará **automaticamen
 
 ---
 
+## ✅ Status Validado (17/09/2026)
+
+| Serviço | Container | Status | Detalhe |
+| :--- | :--- | :--- | :--- |
+| **archimedes** | `archimedes` | ✅ Up | `opencode serve` na `4096`, modelo cloud `big-pickle` testado com sucesso |
+| **ollama** | `archimedes-ollama` | ✅ Up (healthy) | GPU **RTX 5060** detectada (CUDA 12.0, 7.3 GiB VRAM) |
+| **open-webui** | `archimedes-open-webui` | ✅ Up | Interface web `http://ip:3000` |
+
+### 🎯 Arquitetura de modelos (decisão do Bruno)
+
+| Agente | Modelo | Onde roda |
+| :--- | :--- | :--- |
+| 🏛️ **Archimedes** (container) | Cloud (`big-pickle`) | API cloud (raciocínio profundo) |
+| 🤖 **Hermes** (estagiário) | Local (`qwen3:8b` via Ollama) | GPU RTX 5060 — R$ 0 |
+
+### 🩺 Comandos de verificação (dentro do Alienware)
+
+```bash
+cd ~/archimedes-v2/docker && sudo docker compose ps
+sudo docker logs archimedes            # opencode serve na 4096
+curl -s http://127.0.0.1:11434/api/tags # modelos locais do Ollama
+sudo docker exec -w /work archimedes /root/.opencode/bin/opencode run "teste"
+```
+
+### 📝 Observações de implementação
+
+- Healthcheck do Ollama usa TCP `/dev/tcp` (a imagem **não tem `curl`** — usar `curl` no healthcheck trava o compose).
+- Credencial do opencode (provider cloud) é copiada do workstation para o volume do container (`docker cp auth.json archimedes:/root/.local/share/opencode/`).
+- `.env` local com `WEBUI_SECRET_KEY` gerada (`openssl rand -hex 32`).
+
+---
+
 ## 🏗️ Arquitetura Final (o que será criado)
 
 | Serviço | Container | Porta | Função |
