@@ -7,10 +7,10 @@
 
 ## ⚡ Execução Rápida (One-Liner)
 
-No terminal do Linux, como **root ou com sudo**:
+No terminal do Linux — **com sudo** (o script exige root):
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/brcesarms/linux-toolbox-tui/main/linux-toolbox.sh)
+curl -sL https://raw.githubusercontent.com/brcesarms/linux-toolbox-tui/main/linux-toolbox.sh | sudo bash
 ```
 
 Ou execute localmente clonando o repositório:
@@ -22,12 +22,20 @@ chmod +x linux-toolbox.sh
 sudo ./linux-toolbox.sh
 ```
 
+**Execução headless (sem abrir a TUI) — recomendado para automação:**
+
+```bash
+curl -sL https://raw.githubusercontent.com/brcesarms/linux-toolbox-tui/main/linux-toolbox.sh | sudo bash -s R1,R2
+sudo ./linux-toolbox.sh D1,D4,P1   # com o clone local
+```
+
 **Sem sudo / apenas visualizar:**
 
 ```bash
 ./linux-toolbox.sh --preview    # renderiza a tela sem instalar nada
-./linux-toolbox.sh D1,D4,P1     # modo headless: executa códigos direto
 ```
+
+> ⚠️ **Atenção:** NÃO use `bash <(curl -s ...)` (process substitution): sem sudo o script aborta por exigir root e, com `sudo`, o `/dev/fd` do substitution não é herdado (erro `Arquivo ou diretório inexistente`). Use SEMPRE o pipe `curl -sL ... | sudo bash`.
 
 ---
 

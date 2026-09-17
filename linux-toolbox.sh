@@ -120,9 +120,18 @@ detectar_distro() {
 }
 
 require_root() {
+    # $1 opcional: lote de códigos (ex: R1,R2) para sugerir no comando de re-execução
+    local lote="${1:-}"
     if [ "$(id -u)" -ne 0 ]; then
         printf '\n%s[!] Privilégios de root são necessários.%s\n' "$C_YELLOW" "$C_RESET"
-        printf '%s[*] Use: sudo %s%s\n\n' "$C_CYAN" "$0" "$C_RESET"
+        printf '%s[*] Rode novamente com sudo. Exemplos:%s\n' "$C_CYAN" "$C_RESET"
+        if [ -n "$lote" ]; then
+            printf '%s    curl -sL https://raw.githubusercontent.com/brcesarms/linux-toolbox-tui/main/linux-toolbox.sh | sudo bash -s %s%s\n' "$C_CYAN" "$lote" "$C_RESET"
+            printf '%s    sudo ./linux-toolbox.sh %s%s\n' "$C_CYAN" "$lote" "$C_RESET"
+        else
+            printf '%s    curl -sL https://raw.githubusercontent.com/brcesarms/linux-toolbox-tui/main/linux-toolbox.sh | sudo bash%s\n' "$C_CYAN" "$C_RESET"
+            printf '%s    sudo ./linux-toolbox.sh%s\n' "$C_CYAN" "$C_RESET"
+        fi
         exit 1
     fi
 }
@@ -1769,7 +1778,7 @@ main() {
             # Modo headless (lote por argumento, ex: ./linux-toolbox.sh D1,D4,P1)
             IS_HEADLESS=1
             detectar_distro
-            require_root
+            require_root "$1"
             detectar_usuario_real
             dispatch_execution "$1"
             exit 0
