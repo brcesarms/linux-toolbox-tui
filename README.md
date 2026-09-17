@@ -135,6 +135,7 @@ sudo ./linux-toolbox.sh D1,D4,C1,P1
 * 🏛️ **[Archimedes no Alienware — Deploy Docker](./runbooks/archimedes-alienware-docker.md)** — instala o agente Archimedes V2 no Alienware inteiramente em containers (zero poluição do sistema), com GPU NVIDIA e serviço chamado `archimedes`.
 * 🤖 **[Hermes Agent no Alienware — Estagiário Local](./runbooks/hermes-agent-alienware.md)** — instala o Hermes Agent (Nous Research) com modelo local `hermes3-64k` (Ollama/GPU RTX 5060), tool calling validado e custo R$ 0. Inclui os 2 fixes obrigatórios (venv + tool_search).
 * 🤖 **[Google Antigravity CLI `agy` — Ubuntu](./runbooks/agy-cli-google.md)** — instala o CLI oficial do Google Antigravity em `~/.local/bin/agy` (sem sudo, checksum verificado, self-update) e guia o primeiro login via keyring/browser.
+* 🏛️ **[Força do Archimedes no `agy` + Hermes Agent](./runbooks/agy-hermes-forca-opencode.md)** — leva as 4 skills, 3 subagentes, persona e o RAG semântico (MCP via streamable-http em `10.0.0.10:8765`) para o `agy` e o Hermes no Alienware, a partir do bundle portátil `plugins/archimedes-agent`.
 
 ---
 
