@@ -1280,7 +1280,7 @@ ler_tecla() {
 
     case "$key" in
         ' ')                 TECLA=5 ;;
-        $'\n'|$'\r')         TECLA=6 ;;
+        ''|$'\n'|$'\r')       TECLA=6 ;;
         $'\t')               TECLA=3 ;; # Tab = Próxima aba (igual RightArrow)
         [qQ])                TECLA=10 ;;
         [sS]|1)              TECLA=21 ;;
