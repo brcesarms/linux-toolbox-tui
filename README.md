@@ -139,6 +139,7 @@ sudo ./linux-toolbox.sh D1,D4,C1,P1
 * 🚚 **[Migração GEEKOM → Alienware em 5 Minutos (1-Click)](./runbooks/migracao-geekom-alienware-5min.md)** — move cofre, RAG (+índice LanceDB), projetos, vault, notas e backups do workstation para o Alienware via script orquestrado em < 5 minutos.
 * 🖥️ **[Atualização Proxmox & Repositório Comunidade](./runbooks/proxmox-update-no-subscription.md)** — ativa o repositório `pve-no-subscription`, remove aviso de licença pago e atualiza o Proxmox VE via SSH.
 * 🖥️ **[Instalação e Configuração do PNETLab no Proxmox VE](./runbooks/pnetlab-proxmox-setup.md)** — importação de OVA, VM com aceleração KVM, upgrade v4->v5 e nós de rede (MikroTik CHR).
+* 🔌 **[Ativar Servidor SSH no Windows (ACER / laptop-brn)](./runbooks/enable-ssh-windows-acer.md)** — comando de 1 linha em PowerShell para instalar, ativar e liberar porta 22 do OpenSSH Server no laptop ACER.
 
 ---
 
