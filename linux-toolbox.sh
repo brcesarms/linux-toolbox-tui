@@ -1716,6 +1716,21 @@ restaurar_terminal() {
     tput cnorm 2>/dev/null || true
 }
 
+fechar_terminal_pai() {
+    # Se estiver rodando interativamente em terminal, encerra a janela/aba do terminal pai ao sair
+    if [ -t 0 ] || [ -t 1 ]; then
+        local ppid_shell ppid_term
+        ppid_shell=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')
+        if [ -n "$ppid_shell" ]; then
+            ppid_term=$(ps -o ppid= -p "$ppid_shell" 2>/dev/null | tr -d ' ')
+            kill -HUP "$ppid_shell" 2>/dev/null || kill -9 "$ppid_shell" 2>/dev/null || true
+            if [ -n "$ppid_term" ]; then
+                kill -HUP "$ppid_term" 2>/dev/null || kill -9 "$ppid_term" 2>/dev/null || true
+            fi
+        fi
+    fi
+}
+
 exibir_ajuda() {
     cat <<EOF
 LINUX-TOOLBOX-TUI — Caixa de Ferramentas & Pós-Instalação para Linux
@@ -1816,6 +1831,7 @@ main() {
 
     restaurar_terminal
     printf '\n%s[+] Encerrando linux-toolbox-tui. Até logo!%s\n\n' "$C_GREEN" "$C_RESET"
+    fechar_terminal_pai
 }
 
 main "$@"
