@@ -141,7 +141,6 @@ sudo ./linux-toolbox.sh D1,D4,C1,P1
 * 🖥️ **[Instalação e Configuração do PNETLab no Proxmox VE](./runbooks/pnetlab-proxmox-setup.md)** — importação de OVA, VM com aceleração KVM, upgrade v4->v5 e nós de rede (MikroTik CHR).
 * 🔌 **[Ativar Servidor SSH no Windows (ACER / laptop-brn)](./runbooks/enable-ssh-windows-acer.md)** — comando de 1 linha em PowerShell para instalar, ativar e liberar porta 22 do OpenSSH Server no laptop ACER.
 * ⚡ **[zRAM Estilo Fedora Linux no Ubuntu](./runbooks/zram-fedora-ubuntu.md)** — ativa zRAM compactada em RAM (algoritmo zstd, 100% RAM, swappiness 180) e remove o swapfile de disco.
-* 📡 **[Reboot Diário Automático no MikroTik (04:00 AM)](./runbooks/mikrotik-reboot-diario-4am.md)** — agendamento automático via RouterOS Scheduler no terminal SSH ou WinBox.
 
 ---
 
