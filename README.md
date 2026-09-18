@@ -140,6 +140,7 @@ sudo ./linux-toolbox.sh D1,D4,C1,P1
 * 🖥️ **[Atualização Proxmox & Repositório Comunidade](./runbooks/proxmox-update-no-subscription.md)** — ativa o repositório `pve-no-subscription`, remove aviso de licença pago e atualiza o Proxmox VE via SSH.
 * 🖥️ **[Instalação e Configuração do PNETLab no Proxmox VE](./runbooks/pnetlab-proxmox-setup.md)** — importação de OVA, VM com aceleração KVM, upgrade v4->v5 e nós de rede (MikroTik CHR).
 * 🔌 **[Ativar Servidor SSH no Windows (ACER / laptop-brn)](./runbooks/enable-ssh-windows-acer.md)** — comando de 1 linha em PowerShell para instalar, ativar e liberar porta 22 do OpenSSH Server no laptop ACER.
+* ⚡ **[zRAM Estilo Fedora Linux no Ubuntu](./runbooks/zram-fedora-ubuntu.md)** — ativa zRAM compactada em RAM (algoritmo zstd, 100% RAM, swappiness 180) e remove o swapfile de disco.
 
 ---
 
